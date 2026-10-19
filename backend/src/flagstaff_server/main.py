@@ -49,7 +49,8 @@ def build_container(settings: Settings) -> Container:
 
 
 def app() -> FastAPI:
-    # Run with: uvicorn --factory flagstaff_server.main:app
+    # For development: uvicorn --factory --reload flagstaff_server.main:app. Deployments run
+    # flagstaff-server serve, which also ends SDK streams promptly on shutdown.
     settings = Settings()
     configure_logging(settings.log_level, settings.log_format)
     return create_app(build_container(settings))

@@ -294,6 +294,16 @@ async def test_closing_ends_every_stream(
             await stream.next()
 
 
+async def test_a_stream_that_arrives_after_closing_ends_at_once(
+    broadcaster: RulesetBroadcaster, uow: FakeUnitOfWork
+) -> None:
+    broadcaster.close()
+
+    async with broadcaster.subscribe(environment(uow, "prod"), known_version=None) as stream:
+        with pytest.raises(StreamClosedError):
+            await stream.next()
+
+
 async def test_forgets_an_environment_once_its_last_stream_leaves(
     broadcaster: RulesetBroadcaster, uow: FakeUnitOfWork
 ) -> None:

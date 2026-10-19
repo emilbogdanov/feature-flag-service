@@ -95,6 +95,7 @@ class RulesetBroadcaster:
         self._published: dict[EnvironmentId, PublishedRuleset] = {}
         self._building: defaultdict[EnvironmentId, asyncio.Lock] = defaultdict(asyncio.Lock)
         self.stats = BroadcastStats()
+        self._closed = False
 
     @property
     def stream_count(self) -> int:
@@ -107,6 +108,9 @@ class RulesetBroadcaster:
         self, environment_id: EnvironmentId, *, known_version: int | None
     ) -> AsyncIterator[RulesetSubscription]:
         subscription = RulesetSubscription(environment_id, known_version=known_version)
+        # A stream that slips in while the server shuts down ends at once, like the rest.
+        if self._closed:
+            subscription.close()
         self._subscriptions[environment_id].add(subscription)
         try:
             # Checked against the database rather than taken from the cache, which may be
@@ -130,6 +134,7 @@ class RulesetBroadcaster:
             await self._publish(environment_id, version)
 
     def close(self) -> None:
+        self._closed = True
         for subscriptions in self._subscriptions.values():
             for subscription in subscriptions:
                 subscription.close()

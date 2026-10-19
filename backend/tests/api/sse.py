@@ -7,6 +7,8 @@ import uvicorn
 from fastapi import FastAPI
 from httpx import Response
 
+from flagstaff_server.server import DrainingServer
+
 
 @dataclass
 class Event:
@@ -43,20 +45,21 @@ async def next_event(stream: AsyncIterator[Event], *, kind: str, within: float =
 
 
 # A real server rather than httpx's ASGI transport, which waits for the whole response body and
-# so never returns from an endless stream.
+# so never returns from an endless stream. It drains like the deployed one, so stopping it ends
+# its streams straight away; the graceful timeout is long enough for a test to notice if not.
 class RunningServer:
-    # Port 0 lets the OS pick; pass a port to bring a server back where clients expect it. The
-    # short graceful timeout is what lets a test stop a server that SDK streams still hold open.
+    # Port 0 lets the OS pick; pass a port to bring a server back where clients expect it.
     def __init__(self, app: FastAPI, *, port: int = 0) -> None:
-        self._server = uvicorn.Server(
+        self._server = DrainingServer(
             uvicorn.Config(
                 app,
                 host="127.0.0.1",
                 port=port,
                 log_level="critical",
                 lifespan="on",
-                timeout_graceful_shutdown=1,
-            )
+                timeout_graceful_shutdown=10,
+            ),
+            end_streams=app.state.container.broadcaster.close,
         )
         self._task: asyncio.Task[None] | None = None
 
@@ -70,6 +73,9 @@ class RunningServer:
         return f"http://{host}:{port}"
 
     async def __aexit__(self, *_: object) -> None:
+        await self.stop()
+
+    async def stop(self) -> None:
         self._server.should_exit = True
         if self._task is not None:
             await self._task

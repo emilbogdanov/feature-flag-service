@@ -5,11 +5,12 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+import uvicorn
 from pydantic import ValidationError
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from flagstaff_server.api.app import openapi_schema
+from flagstaff_server.api.app import create_app, openapi_schema
 from flagstaff_server.application.api_keys import ApiKeyService
 from flagstaff_server.config import Settings
 from flagstaff_server.domain.audit import Actor
@@ -18,6 +19,9 @@ from flagstaff_server.domain.values import Name
 from flagstaff_server.infrastructure.clock import SystemClock
 from flagstaff_server.infrastructure.db.engine import database_engine
 from flagstaff_server.infrastructure.db.unit_of_work import SqlUnitOfWork
+from flagstaff_server.infrastructure.logs import configure_logging
+from flagstaff_server.main import build_container
+from flagstaff_server.server import DrainingServer
 
 _FAILED = 1
 _USAGE_ERROR = 2
@@ -27,6 +31,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         match args.command:
+            case "serve":
+                _serve(host=args.host, port=args.port, graceful_timeout=args.graceful_timeout)
             case "create-admin-key":
                 _create_admin_key(Name(args.name))
             case "openapi":
@@ -48,6 +54,21 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="flagstaff-server")
     commands = parser.add_subparsers(dest="command", required=True)
 
+    serve = commands.add_parser(
+        "serve",
+        help="run the API server",
+        description="Run the API server, configured by its FLAGSTAFF_ environment variables.",
+    )
+    serve.add_argument("--host", default="127.0.0.1", help="address to listen on")
+    serve.add_argument("--port", type=int, default=8000, help="port to listen on")
+    serve.add_argument(
+        "--graceful-timeout",
+        type=int,
+        default=10,
+        metavar="SECONDS",
+        help="how long requests in flight get to finish on shutdown (default: 10)",
+    )
+
     # The API only issues keys to an admin, so the first admin key has to come from here.
     create_admin_key = commands.add_parser(
         "create-admin-key",
@@ -64,6 +85,22 @@ def _parser() -> argparse.ArgumentParser:
     )
     openapi.add_argument("--output", type=Path, help="file to write instead of standard output")
     return parser
+
+
+def _serve(*, host: str, port: int, graceful_timeout: int) -> None:
+    settings = Settings()
+    configure_logging(settings.log_level, settings.log_format)
+    container = build_container(settings)
+    config = uvicorn.Config(
+        create_app(container),
+        host=host,
+        port=port,
+        # Logging is already set up, uvicorn's messages included, and the app logs each request.
+        log_config=None,
+        access_log=False,
+        timeout_graceful_shutdown=graceful_timeout,
+    )
+    DrainingServer(config, end_streams=container.broadcaster.close).run()
 
 
 def _create_admin_key(name: Name) -> None:

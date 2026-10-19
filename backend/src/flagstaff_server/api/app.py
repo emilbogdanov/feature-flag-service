@@ -21,7 +21,8 @@ def create_app(container: Container) -> FastAPI:
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         broadcasting = asyncio.create_task(container.broadcaster.run())
         yield
-        # Streams end first, so every SDK reconnects, most likely to another instance.
+        # flagstaff-server serve has ended the streams already, as shutdown began. Under a plain
+        # uvicorn, as in development, they end only here, once uvicorn has stopped waiting.
         container.broadcaster.close()
         broadcasting.cancel()
         with suppress(asyncio.CancelledError):

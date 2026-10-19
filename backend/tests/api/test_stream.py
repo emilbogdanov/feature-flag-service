@@ -134,3 +134,23 @@ async def test_open_streams_and_the_rulesets_built_for_them_are_in_the_metrics(
 
     assert sample(exposition, "flagstaff_sdk_streams") == 1.0
     assert sample(exposition, "flagstaff_rulesets_built_total") == 1.0
+
+
+async def test_shutting_down_ends_open_streams_straight_away(
+    container: Container, as_prod_sdk: Headers
+) -> None:
+    server = RunningServer(create_app(container))
+    async with (
+        server as url,
+        AsyncClient(base_url=url, timeout=5) as client,
+        client.stream("GET", "/sdk/stream", headers=as_prod_sdk) as response,
+    ):
+        stream = events(response)
+        await next_event(stream, kind="ruleset")
+
+        stopping = asyncio.create_task(server.stop())
+        # Far inside the server's graceful timeout, which would otherwise hold it open.
+        async with asyncio.timeout(1):
+            async for _ in stream:
+                pass
+            await stopping
