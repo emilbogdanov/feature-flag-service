@@ -36,6 +36,12 @@ class SqlProjectRepository:
         row = await self._session.scalar(select(ProjectRow).where(ProjectRow.key == str(key)))
         return _to_project(row) if row is not None else None
 
+    async def get_many(self, project_ids: Collection[ProjectId]) -> dict[ProjectId, Project]:
+        if not project_ids:
+            return {}
+        rows = await self._session.scalars(select(ProjectRow).where(ProjectRow.id.in_(project_ids)))
+        return {ProjectId(row.id): _to_project(row) for row in rows}
+
     async def list(self) -> list[Project]:
         rows = await self._session.scalars(select(ProjectRow).order_by(ProjectRow.key))
         return [_to_project(row) for row in rows]
@@ -70,6 +76,16 @@ class SqlEnvironmentRepository:
     async def get(self, environment_id: EnvironmentId) -> Environment | None:
         row = await self._session.get(EnvironmentRow, environment_id)
         return _to_environment(row) if row is not None else None
+
+    async def get_many(
+        self, environment_ids: Collection[EnvironmentId]
+    ) -> dict[EnvironmentId, Environment]:
+        if not environment_ids:
+            return {}
+        rows = await self._session.scalars(
+            select(EnvironmentRow).where(EnvironmentRow.id.in_(environment_ids))
+        )
+        return {EnvironmentId(row.id): _to_environment(row) for row in rows}
 
     async def get_by_key(self, project_id: ProjectId, key: Slug) -> Environment | None:
         row = await self._session.scalar(

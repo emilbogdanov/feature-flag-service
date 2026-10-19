@@ -127,4 +127,23 @@ async def test_lists_keys_newest_first(service: ApiKeyService, clock: FixedClock
 
     keys = await service.list_keys()
 
-    assert [str(key.name) for key in keys] == ["search-worker", "checkout-api", "Release tooling"]
+    assert [str(listed.key.name) for listed in keys] == [
+        "search-worker",
+        "checkout-api",
+        "Release tooling",
+    ]
+
+
+async def test_lists_sdk_keys_with_the_project_and_environment_they_read(
+    service: ApiKeyService,
+) -> None:
+    await service.issue_sdk_key(CLI, STOREFRONT, PROD, name=Name("checkout-api"))
+    await service.issue_admin_key(CLI, name=Name("Release tooling"))
+
+    listed = {str(scoped.key.name): scoped for scoped in await service.list_keys()}
+
+    sdk, admin = listed["checkout-api"], listed["Release tooling"]
+    assert sdk.project is not None
+    assert sdk.environment is not None
+    assert (sdk.project.key, sdk.environment.key) == (STOREFRONT, PROD)
+    assert (admin.project, admin.environment) == (None, None)

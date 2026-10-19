@@ -16,7 +16,7 @@ from flagstaff_server.domain.ids import ApiKeyId
 if TYPE_CHECKING:
     from flagstaff_server.application.ports import Clock, UnitOfWork
     from flagstaff_server.domain.audit import Actor, AuditEntry
-    from flagstaff_server.domain.projects import Environment
+    from flagstaff_server.domain.projects import Environment, Project
     from flagstaff_server.domain.values import Name, Slug
 
 # Tells secret scanners and anyone reading a config file what the string is, and which kind:
@@ -24,11 +24,24 @@ if TYPE_CHECKING:
 SECRET_PREFIXES: Final = {ApiKeyKind.ADMIN: "fs_admin_", ApiKeyKind.SDK: "fs_sdk_"}
 
 
+# A key with the project and environment it reads, so a listing can say "storefront / prod"
+# instead of an id. Both are None for an admin key.
+@dataclass(frozen=True, slots=True)
+class ScopedApiKey:
+    key: ApiKey
+    project: Project | None = None
+    environment: Environment | None = None
+
+
 @dataclass(frozen=True, slots=True)
 class IssuedApiKey:
-    key: ApiKey
+    scoped: ScopedApiKey
     # Shown once. Only its hash is stored, so a lost secret is replaced, not recovered.
     secret: str
+
+    @property
+    def key(self) -> ApiKey:
+        return self.scoped.key
 
 
 # A secret carries 256 random bits, so unlike a password there is nothing to guess and a fast
@@ -45,10 +58,10 @@ class ApiKeyService:
     async def issue_admin_key(self, actor: Actor, *, name: Name) -> IssuedApiKey:
         key = ApiKey.admin(key_id=ApiKeyId(uuid4()), name=name, at=self._clock.now())
         async with self._uow as uow:
-            issued = await self._store(uow, key)
+            secret = await self._store(uow, key)
             await uow.audit.add(self._entry(AuditAction.API_KEY_ISSUED, actor, key))
             await uow.commit()
-        return issued
+        return IssuedApiKey(ScopedApiKey(key), secret)
 
     async def issue_sdk_key(
         self, actor: Actor, project_key: Slug, environment_key: Slug, *, name: Name
@@ -62,10 +75,10 @@ class ApiKeyService:
                 environment_id=environment.id,
                 at=self._clock.now(),
             )
-            issued = await self._store(uow, key)
+            secret = await self._store(uow, key)
             await uow.audit.add(self._entry(AuditAction.API_KEY_ISSUED, actor, key, environment))
             await uow.commit()
-        return issued
+        return IssuedApiKey(ScopedApiKey(key, project, environment), secret)
 
     async def authenticate(self, secret: str) -> ApiKey:
         async with self._uow as uow:
@@ -90,14 +103,26 @@ class ApiKeyService:
                 await uow.commit()
         return key
 
-    async def list_keys(self) -> list[ApiKey]:
+    async def list_keys(self) -> list[ScopedApiKey]:
         async with self._uow as uow:
-            return await uow.api_keys.list()
+            keys = await uow.api_keys.list()
+            environments = await uow.environments.get_many(
+                {key.environment_id for key in keys if key.environment_id is not None}
+            )
+            projects = await uow.projects.get_many(
+                {environment.project_id for environment in environments.values()}
+            )
+        listed = []
+        for key in keys:
+            environment = environments.get(key.environment_id) if key.environment_id else None
+            project = projects.get(environment.project_id) if environment else None
+            listed.append(ScopedApiKey(key, project, environment))
+        return listed
 
-    async def _store(self, uow: UnitOfWork, key: ApiKey) -> IssuedApiKey:
+    async def _store(self, uow: UnitOfWork, key: ApiKey) -> str:
         secret = SECRET_PREFIXES[key.kind] + secrets.token_urlsafe(32)
         await uow.api_keys.add(key, secret_hash=hash_secret(secret))
-        return IssuedApiKey(key, secret)
+        return secret
 
     def _entry(
         self,

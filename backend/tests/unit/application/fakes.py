@@ -53,6 +53,9 @@ class InMemoryProjectRepository:
     async def get_by_key(self, key: Slug) -> Project | None:
         return next((p for p in self._state.projects.values() if p.key == key), None)
 
+    async def get_many(self, project_ids: Collection[ProjectId]) -> dict[ProjectId, Project]:
+        return {i: self._state.projects[i] for i in project_ids if i in self._state.projects}
+
     async def list(self) -> list[Project]:
         return sorted(self._state.projects.values(), key=lambda project: project.key.value)
 
@@ -69,6 +72,12 @@ class InMemoryEnvironmentRepository:
 
     async def get(self, environment_id: EnvironmentId) -> Environment | None:
         return self._state.environments.get(environment_id)
+
+    async def get_many(
+        self, environment_ids: Collection[EnvironmentId]
+    ) -> dict[EnvironmentId, Environment]:
+        environments = self._state.environments
+        return {i: environments[i] for i in environment_ids if i in environments}
 
     async def get_by_key(self, project_id: ProjectId, key: Slug) -> Environment | None:
         return next(

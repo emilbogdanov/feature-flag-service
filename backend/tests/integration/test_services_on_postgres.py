@@ -122,7 +122,10 @@ async def test_an_issued_key_authenticates_against_postgres(
     await keys.revoke(CLI, issued.key.id)
 
     assert authenticated.id == issued.key.id
-    assert [key.revoked_at for key in await keys.list_keys()] == [NOW]
+    [listed] = await keys.list_keys()
+    assert listed.key.revoked_at == NOW
+    assert listed.environment is not None
+    assert listed.environment.key == PROD
 
 
 async def test_two_kill_switches_thrown_at_once_both_take_effect(
