@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from redis.asyncio import Redis
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from flagstaff_server.api.app import create_app
 from flagstaff_server.api.container import Container
@@ -8,28 +8,23 @@ from flagstaff_server.application.live import RulesetBroadcaster
 from flagstaff_server.application.rulesets import RulesetService
 from flagstaff_server.config import Settings
 from flagstaff_server.infrastructure.clock import SystemClock
+from flagstaff_server.infrastructure.db.engine import database_engine
 from flagstaff_server.infrastructure.db.unit_of_work import SqlUnitOfWork
 from flagstaff_server.infrastructure.logs import configure_logging
 from flagstaff_server.infrastructure.redis_changes import RedisRulesetChanges
 
-# asyncpg timeouts, in seconds: fail fast when the database is unreachable or a query hangs,
-# instead of holding the request, and a pool connection, open indefinitely.
-_CONNECT_TIMEOUT = 5
-_QUERY_TIMEOUT = 15
+# Seconds to wait for Redis to accept a connection before giving up on it.
+_REDIS_CONNECT_TIMEOUT = 5
 
 
 def build_container(settings: Settings) -> Container:
-    engine = create_async_engine(
-        str(settings.database_url),
-        pool_pre_ping=True,
-        connect_args={"timeout": _CONNECT_TIMEOUT, "command_timeout": _QUERY_TIMEOUT},
-    )
+    engine = database_engine(str(settings.database_url))
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     # No socket timeout: the change feed blocks on a read for as long as nothing changes. The
     # health check is what notices a connection that died quietly.
     redis = Redis.from_url(
         str(settings.redis_url),
-        socket_connect_timeout=_CONNECT_TIMEOUT,
+        socket_connect_timeout=_REDIS_CONNECT_TIMEOUT,
         health_check_interval=30,
     )
 

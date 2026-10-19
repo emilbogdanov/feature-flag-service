@@ -17,6 +17,9 @@ dependencies = [
     "uvicorn>=0.54",
 ]
 
+[project.scripts]
+flagstaff-server = "flagstaff_server.cli:main"
+
 [dependency-groups]
 dev = [
     "httpx>=0.28",
