@@ -47,13 +47,17 @@ async def as_admin(uow: FakeUnitOfWork, clock: FixedClock) -> Headers:
     return bearer(issued.secret)
 
 
+async def sdk_key_for(uow: FakeUnitOfWork, clock: FixedClock, environment: str = "prod") -> Headers:
+    issued = await ApiKeyService(uow, clock).issue_sdk_key(
+        CLI, Slug("storefront"), Slug(environment), name=Name(f"checkout-api ({environment})")
+    )
+    return bearer(issued.secret)
+
+
 # A storefront project, created the way the CLI would, with an SDK key for its prod environment.
 @pytest.fixture
 async def as_prod_sdk(uow: FakeUnitOfWork, clock: FixedClock) -> Headers:
     await ProjectService(uow, clock).create_project(
         CLI, key=Slug("storefront"), name=Name("Storefront")
     )
-    issued = await ApiKeyService(uow, clock).issue_sdk_key(
-        CLI, Slug("storefront"), Slug("prod"), name=Name("checkout-api")
-    )
-    return bearer(issued.secret)
+    return await sdk_key_for(uow, clock)

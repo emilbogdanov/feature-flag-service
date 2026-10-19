@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from flagstaff.engine.errors import InvalidFlagError
 
 from flagstaff_server.api.schemas.common import ErrorResponse
+from flagstaff_server.api.versions import VersionRequiredError
 from flagstaff_server.application.errors import (
     ApiKeyNotFoundError,
     InvalidApiKeyError,
@@ -43,6 +44,7 @@ ERROR_RESPONSES: dict[type[Exception], tuple[int, str]] = {
     FlagKeyTakenError: (409, "flag_key_taken"),
     ArchivedFlagError: (409, "flag_archived"),
     StaleFlagError: (412, "version_mismatch"),
+    VersionRequiredError: (428, "version_required"),
 }
 
 
