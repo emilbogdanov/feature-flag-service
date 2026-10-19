@@ -8,6 +8,8 @@ from flagstaff.engine.ruleset import Ruleset
 from flagstaff_server.application.lookups import require_environment, require_project
 
 if TYPE_CHECKING:
+    from collections.abc import Collection
+
     from flagstaff_server.application.ports import UnitOfWork
     from flagstaff_server.domain.ids import EnvironmentId
     from flagstaff_server.domain.projects import Environment
@@ -34,6 +36,14 @@ class RulesetService:
             if environment is None:
                 raise LookupError(f"environment {environment_id} has disappeared")
             return await self._build(uow, environment)
+
+    # Unknown ids are left out.
+    async def current_versions(
+        self, environment_ids: Collection[EnvironmentId]
+    ) -> dict[EnvironmentId, int]:
+        async with self._uow as uow:
+            environments = await uow.environments.get_many(environment_ids)
+        return {i: environment.ruleset_version for i, environment in environments.items()}
 
     async def ruleset_in(self, project_key: Slug, environment_key: Slug) -> Ruleset:
         async with self._uow as uow:

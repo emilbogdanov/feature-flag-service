@@ -257,6 +257,7 @@ class FakeUnitOfWork:
 class InMemoryRulesetChanges:
     def __init__(self) -> None:
         self.announced: list[RulesetChange] = []
+        self.subscriptions_made = 0
         self._listeners: list[asyncio.Queue[RulesetChange | None]] = []
 
     async def announce(self, changes: Collection[RulesetChange]) -> None:
@@ -268,6 +269,7 @@ class InMemoryRulesetChanges:
     async def listen(self) -> AsyncIterator[RulesetChange]:
         queue: asyncio.Queue[RulesetChange | None] = asyncio.Queue()
         self._listeners.append(queue)
+        self.subscriptions_made += 1
         try:
             while (change := await queue.get()) is not None:
                 yield change
