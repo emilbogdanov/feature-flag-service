@@ -30,6 +30,7 @@ def create_app(container: Container) -> FastAPI:
 
     app = _routed_app(lifespan)
     app.state.container = container
+    app.metrics.watch(container.broadcaster)
     return app
 
 
@@ -51,7 +52,7 @@ class _TracedFastAPI(FastAPI):
         return RequestTracing(super().build_middleware_stack(), self.metrics)
 
 
-def _routed_app(lifespan: Lifespan[FastAPI] | None = None) -> FastAPI:
+def _routed_app(lifespan: Lifespan[FastAPI] | None = None) -> _TracedFastAPI:
     app = _TracedFastAPI(lifespan=lifespan)
     register_error_handlers(app)
     for router in (

@@ -30,12 +30,9 @@ CLI = Actor.command_line()
 STOREFRONT = Slug("storefront")
 
 
-class CountingRulesetService(RulesetService):
-    builds = 0
-
+class UnreachableRulesets(RulesetService):
     async def ruleset_for(self, environment_id: EnvironmentId) -> Ruleset:
-        CountingRulesetService.builds += 1
-        return await super().ruleset_for(environment_id)
+        raise ConnectionError(f"database is down, cannot load {environment_id}")
 
 
 @pytest.fixture
@@ -55,9 +52,8 @@ def flags(uow: FakeUnitOfWork, bus: InMemoryRulesetChanges) -> FlagService:
 
 @pytest.fixture
 def broadcaster(uow: FakeUnitOfWork, bus: InMemoryRulesetChanges) -> RulesetBroadcaster:
-    CountingRulesetService.builds = 0
     return RulesetBroadcaster(
-        lambda: CountingRulesetService(uow), bus, resync_interval=3600, feed_retry_delay=0.01
+        lambda: RulesetService(uow), bus, resync_interval=3600, feed_retry_delay=0.01
     )
 
 
@@ -167,13 +163,13 @@ async def test_builds_each_version_once_however_many_streams_want_it(
         broadcaster.subscribe(prod, known_version=1) as second,
         broadcaster.subscribe(prod, known_version=1) as third,
     ):
-        builds_before = CountingRulesetService.builds
+        builds_before = broadcaster.stats.rulesets_built
         await flags.enable(CLI, STOREFRONT, "new-checkout", Slug("prod"))
 
         received = [await next_ruleset(stream) for stream in (first, second, third)]
 
     assert {ruleset.version for ruleset in received} == {2}
-    assert CountingRulesetService.builds == builds_before + 1
+    assert broadcaster.stats.rulesets_built == builds_before + 1
 
 
 async def test_a_slow_stream_skips_straight_to_the_newest_version(
@@ -254,6 +250,38 @@ async def test_warns_once_per_feed_outage_rather_than_on_every_retry(
         ),
         ("lost the ruleset change feed; resubscribing", "the in-memory feed was cut"),
     ]
+    assert broadcaster.stats.feed_interruptions == len(caplog.records)
+
+
+async def test_a_change_it_cannot_load_is_left_for_the_next_resync(
+    uow: FakeUnitOfWork,
+    bus: InMemoryRulesetChanges,
+    flags: FlagService,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    database_up = True
+    broadcaster = RulesetBroadcaster(
+        lambda: RulesetService(uow) if database_up else UnreachableRulesets(uow),
+        bus,
+        resync_interval=3600,
+    )
+    following = asyncio.create_task(broadcaster.run())
+    try:
+        async with broadcaster.subscribe(environment(uow, "prod"), known_version=1) as stream:
+            await until(lambda: bus.listeners == 1)
+            database_up = False
+            await flags.enable(CLI, STOREFRONT, "new-checkout", Slug("prod"))
+            await until(lambda: broadcaster.stats.load_failures == 1)
+
+            database_up = True
+            await broadcaster.resync()
+
+            assert (await next_ruleset(stream)).version == 2
+    finally:
+        following.cancel()
+        with suppress(asyncio.CancelledError):
+            await following
+    assert "could not load a changed ruleset; the next resync retries it" in caplog.text
 
 
 async def test_closing_ends_every_stream(

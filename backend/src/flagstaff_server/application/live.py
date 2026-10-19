@@ -33,6 +33,14 @@ class StreamClosedError(Exception):
     pass
 
 
+# Running totals for this instance, read on every metrics scrape.
+@dataclass(slots=True)
+class BroadcastStats:
+    rulesets_built: int = 0
+    feed_interruptions: int = 0
+    load_failures: int = 0
+
+
 # One SSE stream's view of its environment. It only ever holds the newest ruleset it hasn't
 # sent yet, so a client that reads slowly skips versions instead of piling them up in memory.
 class RulesetSubscription:
@@ -86,6 +94,7 @@ class RulesetBroadcaster:
         self._subscriptions: defaultdict[EnvironmentId, set[RulesetSubscription]] = defaultdict(set)
         self._published: dict[EnvironmentId, PublishedRuleset] = {}
         self._building: defaultdict[EnvironmentId, asyncio.Lock] = defaultdict(asyncio.Lock)
+        self.stats = BroadcastStats()
 
     @property
     def stream_count(self) -> int:
@@ -135,6 +144,7 @@ class RulesetBroadcaster:
                     if self._subscriptions.get(change.environment_id):
                         await self._publish_safely(change.environment_id, change.version)
             except ChangeFeedUnavailableError as error:
+                self.stats.feed_interruptions += 1
                 logger.log(
                     logging.DEBUG if outage_reported else logging.WARNING,
                     "cannot subscribe to the ruleset change feed; retrying",
@@ -142,6 +152,7 @@ class RulesetBroadcaster:
                 )
                 outage_reported = True
             except ChangeFeedLostError as error:
+                self.stats.feed_interruptions += 1
                 logger.warning(
                     "lost the ruleset change feed; resubscribing", extra={"error": _cause(error)}
                 )
@@ -156,12 +167,14 @@ class RulesetBroadcaster:
             # A background loop that dies leaves streams silently stale, so a database outage
             # is logged and retried on the next tick instead.
             except Exception:
+                self.stats.load_failures += 1
                 logger.warning("ruleset resync failed; retrying next interval", exc_info=True)
 
     async def _publish_safely(self, environment_id: EnvironmentId, version: int) -> None:
         try:
             await self._publish(environment_id, version)
         except Exception:
+            self.stats.load_failures += 1
             logger.warning(
                 "could not load a changed ruleset; the next resync retries it",
                 exc_info=True,
@@ -176,6 +189,7 @@ class RulesetBroadcaster:
             cached = self._published.get(environment_id)
             if cached is None or version is None or cached.version < version:
                 ruleset = await self._rulesets().ruleset_for(environment_id)
+                self.stats.rulesets_built += 1
                 built = PublishedRuleset(
                     ruleset.version, json.dumps(ruleset_to_document(ruleset), separators=(",", ":"))
                 )

@@ -1,4 +1,5 @@
-from typing import Final
+from collections.abc import Iterator
+from typing import Final, override
 
 from prometheus_client import (
     CollectorRegistry,
@@ -10,6 +11,11 @@ from prometheus_client import (
     disable_created_metrics,
     generate_latest,
 )
+from prometheus_client.core import CounterMetricFamily, GaugeMetricFamily
+from prometheus_client.metrics_core import Metric
+from prometheus_client.registry import Collector
+
+from flagstaff_server.application.live import RulesetBroadcaster
 
 # Any other method, a scanner's invented one say, is counted as OTHER rather than adding series.
 _KNOWN_METHODS: Final = frozenset({"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
@@ -55,5 +61,41 @@ class Metrics:
         if seconds is not None:
             self._durations.labels(method, route).observe(seconds)
 
+    def watch(self, broadcaster: RulesetBroadcaster) -> None:
+        self.registry.register(_BroadcasterCollector(broadcaster))
+
     def exposition(self) -> bytes:
         return generate_latest(self.registry)
+
+
+# Reads the broadcaster's totals at scrape time, so the application layer keeps plain counters
+# and never imports prometheus_client.
+class _BroadcasterCollector(Collector):
+    def __init__(self, broadcaster: RulesetBroadcaster) -> None:
+        self._broadcaster = broadcaster
+
+    @override
+    def collect(self) -> Iterator[Metric]:
+        stats = self._broadcaster.stats
+        yield GaugeMetricFamily(
+            "flagstaff_sdk_streams",
+            "SDK streams open on this instance.",
+            value=self._broadcaster.stream_count,
+        )
+        yield CounterMetricFamily(
+            "flagstaff_rulesets_built",
+            "Rulesets built for SDK streams: one per environment and version, however many"
+            " streams send it.",
+            value=stats.rulesets_built,
+        )
+        yield CounterMetricFamily(
+            "flagstaff_change_feed_interruptions",
+            "Times the Redis change feed dropped or failed to subscribe. While it is down,"
+            " streams only catch up on resync.",
+            value=stats.feed_interruptions,
+        )
+        yield CounterMetricFamily(
+            "flagstaff_ruleset_load_failures",
+            "Rulesets the database couldn't supply for streams, left for the next resync.",
+            value=stats.load_failures,
+        )

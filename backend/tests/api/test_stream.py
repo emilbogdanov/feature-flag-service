@@ -122,3 +122,15 @@ async def test_a_stream_is_counted_once_it_closes_but_never_timed(
                 break
             await asyncio.sleep(0.01)
     assert sample(exposition, TIMED, method="GET", route=route) is None
+
+
+async def test_open_streams_and_the_rulesets_built_for_them_are_in_the_metrics(
+    live: AsyncClient, as_prod: Headers
+) -> None:
+    async with live.stream("GET", "/sdk/stream", headers=as_prod) as response:
+        await next_event(events(response), kind="ruleset")
+
+        exposition = await scrape(live)
+
+    assert sample(exposition, "flagstaff_sdk_streams") == 1.0
+    assert sample(exposition, "flagstaff_rulesets_built_total") == 1.0
