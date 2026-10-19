@@ -39,6 +39,8 @@ def test_logs_json_at_info_unless_told_otherwise() -> None:
 
     assert settings.log_level == "INFO"
     assert settings.log_format == "json"
+    assert settings.stream_heartbeat_seconds == 15.0
+    assert settings.ruleset_resync_seconds == 30.0
 
 
 @pytest.mark.parametrize(
@@ -48,6 +50,8 @@ def test_logs_json_at_info_unless_told_otherwise() -> None:
         ("FLAGSTAFF_REDIS_URL", "http://cache:6379"),
         ("FLAGSTAFF_LOG_LEVEL", "VERBOSE"),
         ("FLAGSTAFF_LOG_FORMAT", "xml"),
+        ("FLAGSTAFF_STREAM_HEARTBEAT_SECONDS", "0"),
+        ("FLAGSTAFF_RULESET_RESYNC_SECONDS", "-5"),
     ],
 )
 def test_rejects_invalid_values(env: pytest.MonkeyPatch, name: str, value: str) -> None:

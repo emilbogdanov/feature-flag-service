@@ -1,5 +1,6 @@
+import asyncio
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from importlib.metadata import version
 from typing import Any
 
@@ -8,13 +9,19 @@ from starlette.types import Lifespan
 
 from flagstaff_server.api.container import Container
 from flagstaff_server.api.errors import register_error_handlers
-from flagstaff_server.api.routes import api_keys, audit, flags, projects, rulesets
+from flagstaff_server.api.routes import api_keys, audit, flags, projects, rulesets, stream
 
 
 def create_app(container: Container) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        broadcasting = asyncio.create_task(container.broadcaster.run())
         yield
+        # Streams end first, so every SDK reconnects, most likely to another instance.
+        container.broadcaster.close()
+        broadcasting.cancel()
+        with suppress(asyncio.CancelledError):
+            await broadcasting
         await container.close()
 
     app = _routed_app(lifespan)
@@ -35,6 +42,7 @@ def _routed_app(lifespan: Lifespan[FastAPI] | None = None) -> FastAPI:
         projects.router,
         flags.router,
         rulesets.router,
+        stream.router,
         api_keys.router,
         audit.router,
     ):

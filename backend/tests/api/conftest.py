@@ -7,7 +7,9 @@ from httpx import ASGITransport, AsyncClient
 from flagstaff_server.api.app import create_app
 from flagstaff_server.api.container import Container
 from flagstaff_server.application.api_keys import ApiKeyService
+from flagstaff_server.application.live import RulesetBroadcaster
 from flagstaff_server.application.projects import ProjectService
+from flagstaff_server.application.rulesets import RulesetService
 from flagstaff_server.domain.audit import Actor
 from flagstaff_server.domain.values import Name, Slug
 from tests.unit.application.fakes import FakeUnitOfWork, FixedClock, InMemoryRulesetChanges
@@ -29,11 +31,23 @@ def clock() -> FixedClock:
 
 
 @pytest.fixture
-async def http(uow: FakeUnitOfWork, clock: FixedClock) -> AsyncIterator[AsyncClient]:
+def container(uow: FakeUnitOfWork, clock: FixedClock) -> Container:
     # One shared fake stands in for the database across requests.
-    container = Container(
-        uow_factory=lambda: uow, clock=clock, ruleset_changes=InMemoryRulesetChanges()
+    changes = InMemoryRulesetChanges()
+    broadcaster = RulesetBroadcaster(
+        lambda: RulesetService(uow), changes, resync_interval=3600, feed_retry_delay=0.01
     )
+    return Container(
+        uow_factory=lambda: uow,
+        clock=clock,
+        ruleset_changes=changes,
+        broadcaster=broadcaster,
+        stream_heartbeat_seconds=0.2,
+    )
+
+
+@pytest.fixture
+async def http(container: Container) -> AsyncIterator[AsyncClient]:
     transport = ASGITransport(app=create_app(container))
     async with AsyncClient(transport=transport, base_url="http://flagstaff.test") as client:
         yield client

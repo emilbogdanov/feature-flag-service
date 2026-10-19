@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import PostgresDsn, RedisDsn
+from pydantic import PositiveFloat, PostgresDsn, RedisDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,3 +18,9 @@ class Settings(BaseSettings):
     database_url: PostgresDsn
     # Carries flag-change notifications between API instances so every SSE stream hears them.
     redis_url: RedisDsn
+    # How long a quiet stream waits before sending a keep-alive, below the idle timeout of any
+    # proxy in front of the API.
+    stream_heartbeat_seconds: PositiveFloat = 15.0
+    # How often each instance checks its streams' versions against the database, in case a
+    # change notification was lost; the most a stream can fall behind while Redis is down.
+    ruleset_resync_seconds: PositiveFloat = 30.0
