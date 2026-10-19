@@ -4,6 +4,8 @@ on:
   push:
     paths: &backend-paths
       - "backend/**"
+      # The backend runs the SDK's evaluation engine, so an engine change can break it.
+      - "sdk/**"
       - ".github/workflows/backend.yml"
   pull_request:
     paths: *backend-paths

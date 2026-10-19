@@ -6,6 +6,7 @@ requires-python = ">=3.13"
 license = "MIT"
 authors = [{ name = "Emil Bogdanov" }]
 dependencies = [
+    "flagstaff",
     "pydantic-settings>=2.16",
 ]
 
@@ -16,6 +17,10 @@ dev = [
     "pytest>=9.1",
     "ruff>=0.17.1",
 ]
+
+# The server evaluates flags with the same engine the SDK ships, so both always agree.
+[tool.uv.sources]
+flagstaff = { path = "../sdk", editable = true }
 
 [build-system]
 requires = ["uv_build>=0.13,<0.14"]
