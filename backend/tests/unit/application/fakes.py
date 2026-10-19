@@ -7,7 +7,11 @@ from types import TracebackType
 from typing import Self
 
 from flagstaff_server.application.audit import AuditCursor
-from flagstaff_server.application.errors import ChangeFeedLostError, StaleFlagError
+from flagstaff_server.application.errors import (
+    ChangeFeedLostError,
+    ChangeFeedUnavailableError,
+    StaleFlagError,
+)
 from flagstaff_server.application.rulesets import RulesetChange
 from flagstaff_server.domain.api_keys import ApiKey
 from flagstaff_server.domain.audit import AuditEntry
@@ -258,6 +262,8 @@ class InMemoryRulesetChanges:
     def __init__(self) -> None:
         self.announced: list[RulesetChange] = []
         self.subscriptions_made = 0
+        # Off, every listen() fails to subscribe, as it would while Redis is down.
+        self.available = True
         self._listeners: list[asyncio.Queue[RulesetChange | None]] = []
 
     async def announce(self, changes: Collection[RulesetChange]) -> None:
@@ -267,6 +273,8 @@ class InMemoryRulesetChanges:
                 listener.put_nowait(change)
 
     async def listen(self) -> AsyncIterator[RulesetChange]:
+        if not self.available:
+            raise ChangeFeedUnavailableError("the in-memory feed is switched off")
         queue: asyncio.Queue[RulesetChange | None] = asyncio.Queue()
         self._listeners.append(queue)
         self.subscriptions_made += 1

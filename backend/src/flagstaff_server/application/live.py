@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from flagstaff.engine.wire import ruleset_to_document
 
-from flagstaff_server.application.errors import ChangeFeedLostError
+from flagstaff_server.application.errors import ChangeFeedLostError, ChangeFeedUnavailableError
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable
@@ -125,14 +125,27 @@ class RulesetBroadcaster:
             for subscription in subscriptions:
                 subscription.close()
 
+    # While Redis is down every resubscribe fails, once per retry delay. Only the first failure
+    # of an outage is a warning; a feed that subscribed and then dropped starts a new one.
     async def _follow_feed(self) -> None:
+        outage_reported = False
         while True:
             try:
                 async for change in self._feed.listen():
                     if self._subscriptions.get(change.environment_id):
                         await self._publish_safely(change.environment_id, change.version)
-            except ChangeFeedLostError:
-                logger.warning("lost the ruleset change feed; resubscribing", exc_info=True)
+            except ChangeFeedUnavailableError as error:
+                logger.log(
+                    logging.DEBUG if outage_reported else logging.WARNING,
+                    "cannot subscribe to the ruleset change feed; retrying",
+                    extra={"error": _cause(error)},
+                )
+                outage_reported = True
+            except ChangeFeedLostError as error:
+                logger.warning(
+                    "lost the ruleset change feed; resubscribing", extra={"error": _cause(error)}
+                )
+                outage_reported = True
             await asyncio.sleep(self._feed_retry_delay)
 
     async def _resync_periodically(self) -> None:
@@ -183,3 +196,8 @@ class RulesetBroadcaster:
             del self._subscriptions[environment_id]
             self._published.pop(environment_id, None)
             self._building.pop(environment_id, None)
+
+
+# Redis errors say what went wrong in one line; their tracebacks only ever show redis-py.
+def _cause(error: Exception) -> str:
+    return str(error.__cause__ or error)

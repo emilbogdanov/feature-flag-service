@@ -42,3 +42,8 @@ class ApiKeyNotFoundError(ApplicationError):
 # so its listener can resubscribe; changes missed meanwhile are caught by the next resync.
 class ChangeFeedLostError(ApplicationError):
     pass
+
+
+# The feed couldn't subscribe at all, which is what every attempt sees while Redis is down.
+class ChangeFeedUnavailableError(ChangeFeedLostError):
+    pass

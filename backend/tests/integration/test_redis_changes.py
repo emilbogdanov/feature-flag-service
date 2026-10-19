@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 from redis.asyncio import Redis
 
-from flagstaff_server.application.errors import ChangeFeedLostError
+from flagstaff_server.application.errors import ChangeFeedLostError, ChangeFeedUnavailableError
 from flagstaff_server.application.rulesets import RulesetChange
 from flagstaff_server.domain.ids import EnvironmentId
 from flagstaff_server.infrastructure.redis_changes import CHANNEL, RedisRulesetChanges
@@ -74,6 +74,14 @@ async def test_a_dropped_connection_ends_the_feed_with_a_clear_error(
         async with asyncio.timeout(5):
             await listening
     await listener.aclose()
+
+
+async def test_a_feed_that_cannot_subscribe_says_so() -> None:
+    unreachable = Redis(host="127.0.0.1", port=1, socket_connect_timeout=0.5)
+
+    with pytest.raises(ChangeFeedUnavailableError):
+        await first(RedisRulesetChanges(unreachable).listen(), 1)
+    await unreachable.aclose()
 
 
 async def test_announcing_without_redis_logs_instead_of_failing(

@@ -1,6 +1,8 @@
 import asyncio
 import json
-from collections.abc import AsyncIterator
+import logging
+from collections.abc import AsyncIterator, Callable
+from contextlib import suppress
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -106,6 +108,12 @@ async def next_ruleset(subscription: RulesetSubscription) -> Ruleset:
     ruleset = ruleset_from_document(json.loads(published.document))
     assert ruleset.version == published.version
     return ruleset
+
+
+async def until(condition: Callable[[], bool]) -> None:
+    async with asyncio.timeout(1):
+        while not condition():
+            await asyncio.sleep(0.005)
 
 
 async def nothing_arrives(subscription: RulesetSubscription) -> None:
@@ -214,6 +222,38 @@ async def test_resubscribes_after_losing_the_feed(
         await flags.enable(CLI, STOREFRONT, "new-checkout", Slug("prod"))
 
         assert (await next_ruleset(stream)).version == 2
+
+
+async def test_warns_once_per_feed_outage_rather_than_on_every_retry(
+    broadcaster: RulesetBroadcaster,
+    bus: InMemoryRulesetChanges,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.DEBUG, logger="flagstaff_server.application.live")
+    bus.available = False
+    following = asyncio.create_task(broadcaster.run())
+    try:
+        await until(lambda: len(caplog.records) >= 4)
+        bus.available = True
+        await until(lambda: bus.listeners == 1)
+        bus.cut()
+        await until(lambda: bus.subscriptions_made == 2)
+    finally:
+        following.cancel()
+        with suppress(asyncio.CancelledError):
+            await following
+
+    assert [
+        (record.getMessage(), record.__dict__["error"])
+        for record in caplog.records
+        if record.levelno == logging.WARNING
+    ] == [
+        (
+            "cannot subscribe to the ruleset change feed; retrying",
+            "the in-memory feed is switched off",
+        ),
+        ("lost the ruleset change feed; resubscribing", "the in-memory feed was cut"),
+    ]
 
 
 async def test_closing_ends_every_stream(

@@ -8,7 +8,7 @@ from uuid import UUID
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
 
-from flagstaff_server.application.errors import ChangeFeedLostError
+from flagstaff_server.application.errors import ChangeFeedLostError, ChangeFeedUnavailableError
 from flagstaff_server.application.rulesets import RulesetChange
 from flagstaff_server.domain.ids import EnvironmentId
 
@@ -46,13 +46,19 @@ class RedisRulesetChanges:
     async def listen(self) -> AsyncIterator[RulesetChange]:
         pubsub = self._redis.pubsub(ignore_subscribe_messages=True)
         try:
-            await pubsub.subscribe(self._channel)
-            async for message in pubsub.listen():
-                change = _decode(message.get("data"))
-                if change is not None:
-                    yield change
-        except (RedisError, OSError) as error:
-            raise ChangeFeedLostError(f"lost the subscription to {self._channel}") from error
+            try:
+                await pubsub.subscribe(self._channel)
+            except (RedisError, OSError) as error:
+                raise ChangeFeedUnavailableError(
+                    f"could not subscribe to {self._channel}"
+                ) from error
+            try:
+                async for message in pubsub.listen():
+                    change = _decode(message.get("data"))
+                    if change is not None:
+                        yield change
+            except (RedisError, OSError) as error:
+                raise ChangeFeedLostError(f"lost the subscription to {self._channel}") from error
         finally:
             await pubsub.aclose()  # type: ignore[no-untyped-call]  # redis-py leaves it unannotated
 

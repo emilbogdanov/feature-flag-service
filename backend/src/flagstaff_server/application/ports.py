@@ -102,7 +102,7 @@ class RulesetChangePublisher(Protocol):
 
 class RulesetChangeFeed(Protocol):
     # Changes announced by any instance from the moment of subscribing, until the connection
-    # drops with ChangeFeedLostError.
+    # drops with ChangeFeedLostError, or ChangeFeedUnavailableError if it never subscribed.
     def listen(self) -> AsyncIterator[RulesetChange]: ...
 
 
