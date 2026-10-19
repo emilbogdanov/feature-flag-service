@@ -27,6 +27,11 @@ class InvalidApiKeyError(ApplicationError):
         super().__init__("API key is missing, unknown or revoked")
 
 
+# The key is real and active but not allowed to do this, such as an SDK key on an admin route.
+class PermissionDeniedError(ApplicationError):
+    pass
+
+
 class ApiKeyNotFoundError(ApplicationError):
     def __init__(self, key_id: ApiKeyId) -> None:
         super().__init__(f"API key {key_id} does not exist")

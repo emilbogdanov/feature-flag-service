@@ -8,6 +8,7 @@ authors = [{ name = "Emil Bogdanov" }]
 dependencies = [
     "alembic>=1.20",
     "asyncpg>=0.32",
+    "fastapi>=0.148",
     "flagstaff",
     "pydantic-settings>=2.16",
     "sqlalchemy[asyncio]>=2.1",
@@ -15,6 +16,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28",
     "mypy>=2.4",
     "pre-commit>=4.7",
     "pytest>=9.1",
