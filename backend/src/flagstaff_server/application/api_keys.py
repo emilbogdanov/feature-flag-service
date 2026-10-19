@@ -87,21 +87,19 @@ class ApiKeyService:
             raise InvalidApiKeyError
         return key
 
-    async def revoke(self, actor: Actor, key_id: ApiKeyId) -> ApiKey:
+    async def revoke(self, actor: Actor, key_id: ApiKeyId) -> ScopedApiKey:
         async with self._uow as uow:
             key = await uow.api_keys.get(key_id)
             if key is None:
                 raise ApiKeyNotFoundError(key_id)
+            scoped = await self._scope(uow, key)
             if key.revoke(at=self._clock.now()):
-                environment = (
-                    await uow.environments.get(key.environment_id) if key.environment_id else None
-                )
                 await uow.api_keys.update(key)
                 await uow.audit.add(
-                    self._entry(AuditAction.API_KEY_REVOKED, actor, key, environment)
+                    self._entry(AuditAction.API_KEY_REVOKED, actor, key, scoped.environment)
                 )
                 await uow.commit()
-        return key
+        return scoped
 
     async def list_keys(self) -> list[ScopedApiKey]:
         async with self._uow as uow:
@@ -118,6 +116,14 @@ class ApiKeyService:
             project = projects.get(environment.project_id) if environment else None
             listed.append(ScopedApiKey(key, project, environment))
         return listed
+
+    async def _scope(self, uow: UnitOfWork, key: ApiKey) -> ScopedApiKey:
+        if key.environment_id is None:
+            return ScopedApiKey(key)
+        environment = await uow.environments.get(key.environment_id)
+        projects = await uow.projects.get_many([environment.project_id]) if environment else {}
+        project = projects.get(environment.project_id) if environment else None
+        return ScopedApiKey(key, project, environment)
 
     async def _store(self, uow: UnitOfWork, key: ApiKey) -> str:
         secret = SECRET_PREFIXES[key.kind] + secrets.token_urlsafe(32)

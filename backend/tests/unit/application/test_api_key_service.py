@@ -94,7 +94,9 @@ async def test_a_revoked_key_stops_working(
 
     revoked = await service.revoke(CLI, issued.key.id)
 
-    assert revoked.revoked_at == NOW + timedelta(days=3)
+    assert revoked.key.revoked_at == NOW + timedelta(days=3)
+    assert revoked.environment is not None
+    assert revoked.environment.key == PROD
     with pytest.raises(InvalidApiKeyError):
         await service.authenticate(issued.secret)
     entry = uow.committed.audit[-1]
