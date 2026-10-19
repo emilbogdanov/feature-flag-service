@@ -105,14 +105,18 @@ class SqlEnvironmentRepository:
 
     # ruleset_version + 1 is evaluated by Postgres under the row lock the UPDATE takes, so
     # concurrent bumps queue up and each one counts.
-    async def bump_ruleset_versions(self, environment_ids: Collection[EnvironmentId]) -> None:
+    async def bump_ruleset_versions(
+        self, environment_ids: Collection[EnvironmentId]
+    ) -> dict[EnvironmentId, int]:
         if not environment_ids:
-            return
-        await self._session.execute(
+            return {}
+        rows = await self._session.execute(
             update(EnvironmentRow)
             .where(EnvironmentRow.id.in_(environment_ids))
             .values(ruleset_version=EnvironmentRow.ruleset_version + 1)
+            .returning(EnvironmentRow.id, EnvironmentRow.ruleset_version)
         )
+        return {EnvironmentId(environment_id): version for environment_id, version in rows}
 
 
 def _to_project(row: ProjectRow) -> Project:

@@ -92,12 +92,15 @@ class InMemoryEnvironmentRepository:
     async def list_for_project(self, project_id: ProjectId) -> list[Environment]:
         return [e for e in self._state.environments.values() if e.project_id == project_id]
 
-    async def bump_ruleset_versions(self, environment_ids: Collection[EnvironmentId]) -> None:
+    async def bump_ruleset_versions(
+        self, environment_ids: Collection[EnvironmentId]
+    ) -> dict[EnvironmentId, int]:
         for environment_id in environment_ids:
             environment = self._state.environments[environment_id]
             self._state.environments[environment_id] = replace(
                 environment, ruleset_version=environment.ruleset_version + 1
             )
+        return {i: self._state.environments[i].ruleset_version for i in environment_ids}
 
 
 # Hands out copies, like a database would: a service that changes a flag and forgets to save it

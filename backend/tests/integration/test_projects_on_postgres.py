@@ -154,7 +154,7 @@ async def test_a_bump_shows_up_in_the_same_transaction(
         await environments.add(prod)
         assert (await environments.get(prod.id)) is not None
 
-        await environments.bump_ruleset_versions([prod.id])
+        assert await environments.bump_ruleset_versions([prod.id]) == {prod.id: 1}
 
         stored = await environments.get_by_key(owner.id, Slug("prod"))
         assert stored is not None

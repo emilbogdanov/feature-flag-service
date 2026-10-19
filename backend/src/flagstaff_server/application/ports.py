@@ -47,8 +47,10 @@ class EnvironmentRepository(Protocol):
     async def list_for_project(self, project_id: ProjectId) -> list[Environment]: ...
 
     # One atomic increment per environment, so two changes committed at once each move the
-    # version on instead of both landing on the same number.
-    async def bump_ruleset_versions(self, environment_ids: Collection[EnvironmentId]) -> None: ...
+    # version on instead of both landing on the same number. Returns the versions it moved to.
+    async def bump_ruleset_versions(
+        self, environment_ids: Collection[EnvironmentId]
+    ) -> dict[EnvironmentId, int]: ...
 
 
 class FlagRepository(Protocol):
