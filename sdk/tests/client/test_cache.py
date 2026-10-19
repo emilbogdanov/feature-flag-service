@@ -58,3 +58,49 @@ def test_a_cache_it_cannot_write_is_reported_not_raised(
         RulesetFile(blocked / "prod.json").save(storefront(12))
 
     assert "could not write the ruleset cache" in caplog.text
+
+
+def held_open(path_type: type[Path], monkeypatch: pytest.MonkeyPatch, *, times: int) -> None:
+    # What Windows reports while another process or a scanner has the cache file open.
+    real_replace = path_type.replace
+    remaining = times
+
+    def replace(self: Path, target: Path) -> Path:
+        nonlocal remaining
+        if remaining:
+            remaining -= 1
+            raise PermissionError(13, "Access is denied", str(target))
+        return real_replace(self, target)
+
+    monkeypatch.setattr(path_type, "replace", replace)
+
+
+def test_waits_out_a_cache_file_held_open_for_a_moment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cache = RulesetFile(tmp_path / "prod.json")
+    cache.save(storefront(12))
+    held_open(type(tmp_path), monkeypatch, times=2)
+
+    cache.save(storefront(13))
+
+    loaded = cache.load()
+    assert loaded is not None
+    assert loaded.version == 13
+
+
+def test_gives_up_on_a_cache_file_held_open_for_good_and_cleans_up(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    cache = RulesetFile(tmp_path / "prod.json")
+    cache.save(storefront(12))
+    held_open(type(tmp_path), monkeypatch, times=100)
+
+    with caplog.at_level(logging.WARNING, logger="flagstaff"):
+        cache.save(storefront(13))
+
+    assert "could not write the ruleset cache" in caplog.text
+    assert [path.name for path in tmp_path.iterdir()] == ["prod.json"]
+    loaded = cache.load()
+    assert loaded is not None
+    assert loaded.version == 12
