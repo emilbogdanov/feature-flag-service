@@ -1,0 +1,102 @@
+# The whole service on one machine: Postgres, Redis, two API instances and nginx in front.
+#   docker compose up --build --wait
+#   docker compose exec api-1 flagstaff-server create-admin-key --name "Release tooling"
+# The API answers on http://localhost:8080. Add --profile monitoring for Prometheus on :9090.
+name: flagstaff
+
+x-api: &api
+  # Built once, by the migrate service below, and run by all three.
+  image: flagstaff-server:local
+  pull_policy: never
+  environment:
+    FLAGSTAFF_DATABASE_URL: postgresql+asyncpg://flagstaff:flagstaff@postgres:5432/flagstaff
+    FLAGSTAFF_REDIS_URL: redis://redis:6379/0
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+    redis:
+      condition: service_healthy
+  # The image's own health check, polled every second while an instance starts.
+  healthcheck:
+    start_period: 20s
+    start_interval: 1s
+  restart: unless-stopped
+  # Shutdown ends SDK streams at once and gives other requests 10 s, inside Docker's grace period.
+  stop_grace_period: 15s
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: flagstaff
+      POSTGRES_PASSWORD: flagstaff
+      POSTGRES_DB: flagstaff
+    volumes:
+      # From Postgres 18 the image keeps its data in a versioned directory under this one.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flagstaff -d flagstaff"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:8-alpine
+    # It only carries change notifications between the instances; nothing in it outlives them.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # Runs once, before either instance starts, so they never race each other to migrate.
+  migrate:
+    <<: *api
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    restart: "no"
+
+  api-1: *api
+  api-2: *api
+
+  proxy:
+    image: nginx:1.29-alpine
+    ports:
+      # FLAGSTAFF_PORT moves it if something else already has 8080.
+      - "${FLAGSTAFF_PORT:-8080}:8080"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      api-1:
+        condition: service_healthy
+      api-2:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 5s
+      timeout: 3s
+      start_period: 10s
+      start_interval: 1s
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    profiles: [monitoring]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - api-1
+      - api-2
+
+volumes:
+  postgres-data:
