@@ -1,4 +1,5 @@
 # Images are built from the repository root, and only the server, the SDK and the lock file go in.
+# The SDK's README and license are part of its package metadata, so building it needs them.
 **
 !backend/pyproject.toml
 !backend/uv.lock
@@ -6,5 +7,7 @@
 !backend/migrations/
 !backend/src/
 !sdk/pyproject.toml
+!sdk/README.md
+!sdk/LICENSE
 !sdk/src/
 **/__pycache__

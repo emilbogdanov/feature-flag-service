@@ -1,0 +1,48 @@
+name: release
+
+# A version tag publishes the SDK to PyPI. Trusted publishing: PyPI accepts this workflow's
+# short-lived OIDC token for the flagstaff project, so no API token is stored anywhere.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: sdk
+
+jobs:
+  pypi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/project/flagstaff/
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.3.0
+
+      - name: Check the tag matches the SDK's version
+        run: |
+          version="$(uv version --short)"
+          if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match the SDK's version ${version}"
+            exit 1
+          fi
+
+      - name: Test
+        run: |
+          uv sync --locked
+          uv run pytest
+
+      - name: Build
+        run: uv build
+
+      - name: Publish
+        run: uv publish --trusted-publishing always

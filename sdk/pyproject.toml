@@ -2,10 +2,18 @@
 name = "flagstaff"
 version = "0.1.0"
 description = "Python SDK for Flagstaff feature flags: rules evaluated in-process, kept current over server-sent events."
+readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
+# A copy of the repository's license, so the package carries it wherever it is installed.
+license-files = ["LICENSE"]
 authors = [{ name = "Emil Bogdanov" }]
+keywords = ["feature flags", "feature toggles", "rollout", "server-sent events"]
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: AsyncIO",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -18,6 +26,8 @@ dependencies = [
 
 [project.urls]
 Repository = "https://github.com/emilbogdanov/feature-flag-service"
+Documentation = "https://github.com/emilbogdanov/feature-flag-service/tree/main/sdk#readme"
+Issues = "https://github.com/emilbogdanov/feature-flag-service/issues"
 
 [dependency-groups]
 dev = [
