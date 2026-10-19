@@ -40,3 +40,29 @@ class EnvironmentKeyTakenError(DomainError):
         super().__init__(f"project {str(project_key)!r} already has an environment {str(key)!r}")
         self.project_key = project_key
         self.key = key
+
+
+class FlagNotFoundError(DomainError):
+    def __init__(self, project_key: Slug, key: str) -> None:
+        super().__init__(f"project {str(project_key)!r} has no flag {key!r}")
+        self.project_key = project_key
+        self.key = key
+
+
+class FlagKeyTakenError(DomainError):
+    def __init__(self, project_key: Slug, key: str) -> None:
+        super().__init__(f"project {str(project_key)!r} already has a flag {key!r}")
+        self.project_key = project_key
+        self.key = key
+
+
+# Raised when a change would leave a flag that the engine can't evaluate in some environment,
+# such as a rule serving a variant the flag no longer has.
+class InvalidTargetingError(DomainError):
+    pass
+
+
+class ArchivedFlagError(DomainError):
+    def __init__(self, key: str) -> None:
+        super().__init__(f"flag {key!r} is archived and can no longer be changed")
+        self.key = key
