@@ -1,3 +1,11 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from flagstaff_server.domain.ids import ApiKeyId
+
+
 class ApplicationError(Exception):
     pass
 
@@ -11,3 +19,15 @@ class StaleFlagError(ApplicationError):
         self.key = key
         self.expected = expected
         self.actual = actual
+
+
+# Also raised for a revoked key, so the response doesn't confirm that a leaked key once worked.
+class InvalidApiKeyError(ApplicationError):
+    def __init__(self) -> None:
+        super().__init__("API key is missing, unknown or revoked")
+
+
+class ApiKeyNotFoundError(ApplicationError):
+    def __init__(self, key_id: ApiKeyId) -> None:
+        super().__init__(f"API key {key_id} does not exist")
+        self.key_id = key_id

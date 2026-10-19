@@ -3,9 +3,10 @@ from datetime import datetime
 from types import TracebackType
 from typing import Protocol, Self
 
+from flagstaff_server.domain.api_keys import ApiKey
 from flagstaff_server.domain.audit import AuditEntry
 from flagstaff_server.domain.flags import Flag
-from flagstaff_server.domain.ids import EnvironmentId, ProjectId
+from flagstaff_server.domain.ids import ApiKeyId, EnvironmentId, ProjectId
 from flagstaff_server.domain.projects import Environment, Project
 from flagstaff_server.domain.values import Slug
 
@@ -28,6 +29,8 @@ class ProjectRepository(Protocol):
 class EnvironmentRepository(Protocol):
     # Raises EnvironmentKeyTakenError, now or at commit, if the project already has the key.
     async def add(self, environment: Environment) -> None: ...
+
+    async def get(self, environment_id: EnvironmentId) -> Environment | None: ...
 
     async def get_by_key(self, project_id: ProjectId, key: Slug) -> Environment | None: ...
 
@@ -54,6 +57,19 @@ class FlagRepository(Protocol):
     async def update(self, flag: Flag) -> None: ...
 
 
+class ApiKeyRepository(Protocol):
+    async def add(self, key: ApiKey, *, secret_hash: str) -> None: ...
+
+    async def find_by_secret_hash(self, secret_hash: str) -> ApiKey | None: ...
+
+    async def get(self, key_id: ApiKeyId) -> ApiKey | None: ...
+
+    # Newest first, revoked keys included.
+    async def list(self) -> list[ApiKey]: ...
+
+    async def update(self, key: ApiKey) -> None: ...
+
+
 class AuditLog(Protocol):
     # Written in the caller's transaction, so an entry exists exactly when its change does.
     async def add(self, entry: AuditEntry) -> None: ...
@@ -68,6 +84,9 @@ class UnitOfWork(Protocol):
 
     @property
     def flags(self) -> FlagRepository: ...
+
+    @property
+    def api_keys(self) -> ApiKeyRepository: ...
 
     @property
     def audit(self) -> AuditLog: ...

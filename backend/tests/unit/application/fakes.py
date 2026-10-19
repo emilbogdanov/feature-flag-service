@@ -6,6 +6,7 @@ from types import TracebackType
 from typing import Self
 
 from flagstaff_server.application.errors import StaleFlagError
+from flagstaff_server.domain.api_keys import ApiKey
 from flagstaff_server.domain.audit import AuditEntry
 from flagstaff_server.domain.errors import (
     EnvironmentKeyTakenError,
@@ -13,7 +14,7 @@ from flagstaff_server.domain.errors import (
     ProjectKeyTakenError,
 )
 from flagstaff_server.domain.flags import Flag
-from flagstaff_server.domain.ids import EnvironmentId, FlagId, ProjectId
+from flagstaff_server.domain.ids import ApiKeyId, EnvironmentId, FlagId, ProjectId
 from flagstaff_server.domain.projects import Environment, Project
 from flagstaff_server.domain.values import Slug
 
@@ -23,6 +24,8 @@ class ServerState:
     projects: dict[ProjectId, Project] = field(default_factory=dict)
     environments: dict[EnvironmentId, Environment] = field(default_factory=dict)
     flags: dict[FlagId, Flag] = field(default_factory=dict)
+    api_keys: dict[ApiKeyId, ApiKey] = field(default_factory=dict)
+    secret_hashes: dict[str, ApiKeyId] = field(default_factory=dict)
     audit: list[AuditEntry] = field(default_factory=list)
 
 
@@ -62,6 +65,9 @@ class InMemoryEnvironmentRepository:
             project = self._state.projects[environment.project_id]
             raise EnvironmentKeyTakenError(project.key, environment.key)
         self._state.environments[environment.id] = environment
+
+    async def get(self, environment_id: EnvironmentId) -> Environment | None:
+        return self._state.environments.get(environment_id)
 
     async def get_by_key(self, project_id: ProjectId, key: Slug) -> Environment | None:
         return next(
@@ -118,6 +124,31 @@ class InMemoryFlagRepository:
         self._state.flags[flag.id] = deepcopy(flag)
 
 
+class InMemoryApiKeyRepository:
+    def __init__(self, state: ServerState) -> None:
+        self._state = state
+
+    async def add(self, key: ApiKey, *, secret_hash: str) -> None:
+        assert secret_hash not in self._state.secret_hashes, "secret hash stored twice"
+        self._state.api_keys[key.id] = deepcopy(key)
+        self._state.secret_hashes[secret_hash] = key.id
+
+    async def find_by_secret_hash(self, secret_hash: str) -> ApiKey | None:
+        key_id = self._state.secret_hashes.get(secret_hash)
+        return await self.get(key_id) if key_id else None
+
+    async def get(self, key_id: ApiKeyId) -> ApiKey | None:
+        return deepcopy(self._state.api_keys.get(key_id))
+
+    async def list(self) -> list[ApiKey]:
+        keys = sorted(self._state.api_keys.values(), key=lambda key: key.created_at, reverse=True)
+        return deepcopy(keys)
+
+    async def update(self, key: ApiKey) -> None:
+        assert key.id in self._state.api_keys, f"API key {key.id} updated before it was added"
+        self._state.api_keys[key.id] = deepcopy(key)
+
+
 class InMemoryAuditLog:
     def __init__(self, state: ServerState) -> None:
         self._state = state
@@ -149,6 +180,10 @@ class FakeUnitOfWork:
     @property
     def flags(self) -> InMemoryFlagRepository:
         return InMemoryFlagRepository(self._state())
+
+    @property
+    def api_keys(self) -> InMemoryApiKeyRepository:
+        return InMemoryApiKeyRepository(self._state())
 
     @property
     def audit(self) -> InMemoryAuditLog:
