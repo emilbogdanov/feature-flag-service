@@ -22,7 +22,7 @@ class Container:
     uow_factory: Callable[[], UnitOfWork]
     clock: Clock
     ruleset_changes: RulesetChangePublisher
-    # One per process: it holds this instance's SDK streams.
+    # One per process: it holds this instance's SDK streams and the versions it has heard of.
     broadcaster: RulesetBroadcaster
     authenticated_keys: AuthenticatedKeys
     stream_heartbeat_seconds: float = 15.0

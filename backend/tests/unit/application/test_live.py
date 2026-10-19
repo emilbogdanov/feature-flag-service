@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Collection
 from contextlib import suppress
 from datetime import UTC, datetime
 from uuid import uuid4
@@ -13,6 +13,7 @@ from flagstaff.engine.wire import ruleset_from_document
 
 from flagstaff_server.application.flags import FlagService
 from flagstaff_server.application.live import (
+    KnownVersions,
     PublishedRuleset,
     RulesetBroadcaster,
     RulesetSubscription,
@@ -282,6 +283,75 @@ async def test_a_change_it_cannot_load_is_left_for_the_next_resync(
         with suppress(asyncio.CancelledError):
             await following
     assert "could not load a changed ruleset; the next resync retries it" in caplog.text
+
+
+class Ticking:
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+def test_a_known_version_is_trusted_until_it_is_too_old() -> None:
+    clock = Ticking()
+    versions = KnownVersions(max_age=5.0, clock=clock)
+    prod = EnvironmentId(uuid4())
+
+    versions.record(prod, 3)
+    clock.now += 4.9
+    trusted = versions.get(prod)
+    clock.now += 0.1
+
+    assert (trusted, versions.get(prod)) == (3, None)
+
+
+def test_a_late_notification_never_moves_a_known_version_back() -> None:
+    versions = KnownVersions(max_age=5.0, clock=Ticking())
+    prod = EnvironmentId(uuid4())
+
+    versions.record(prod, 4)
+    versions.record(prod, 3)
+
+    assert versions.get(prod) == 4
+
+
+async def test_answers_version_questions_from_the_feed_without_the_database(
+    uow: FakeUnitOfWork, bus: InMemoryRulesetChanges, flags: FlagService
+) -> None:
+    lookups: list[int] = []
+
+    class CountingRulesets(RulesetService):
+        async def current_versions(
+            self, environment_ids: Collection[EnvironmentId]
+        ) -> dict[EnvironmentId, int]:
+            lookups.append(len(environment_ids))
+            return await super().current_versions(environment_ids)
+
+    broadcaster = RulesetBroadcaster(
+        lambda: CountingRulesets(uow),
+        bus,
+        resync_interval=3600,
+        versions=KnownVersions(max_age=60.0),
+    )
+    prod = environment(uow, "prod")
+    following = asyncio.create_task(broadcaster.run())
+    try:
+        await until(lambda: bus.listeners == 1)
+        first = await broadcaster.current_versions([prod])
+
+        await flags.enable(CLI, STOREFRONT, "new-checkout", Slug("prod"))
+        async with asyncio.timeout(1):
+            while (latest := await broadcaster.current_versions([prod])) == first:
+                await asyncio.sleep(0.005)
+    finally:
+        following.cancel()
+        with suppress(asyncio.CancelledError):
+            await following
+
+    assert (first, latest) == ({prod: 1}, {prod: 2})
+    # Only the first question went to the database; the feed answered the rest.
+    assert lookups == [1]
 
 
 async def test_closing_ends_every_stream(

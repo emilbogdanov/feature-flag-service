@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -13,7 +14,7 @@ from flagstaff.engine.wire import ruleset_to_document
 from flagstaff_server.application.errors import ChangeFeedLostError, ChangeFeedUnavailableError
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Callable
+    from collections.abc import AsyncIterator, Callable, Collection
 
     from flagstaff_server.application.ports import RulesetChangeFeed
     from flagstaff_server.application.rulesets import RulesetService
@@ -31,6 +32,28 @@ class PublishedRuleset:
 
 class StreamClosedError(Exception):
     pass
+
+
+# Each environment's ruleset version as this instance last heard it, from the change feed or
+# the database. The feed normally keeps it current within milliseconds; trusting an entry for
+# no more than max_age seconds bounds how far behind it can be when a notification is lost.
+class KnownVersions:
+    def __init__(self, *, max_age: float, clock: Callable[[], float] = time.monotonic) -> None:
+        self._max_age = max_age
+        self._clock = clock
+        self._versions: dict[EnvironmentId, tuple[int, float]] = {}
+
+    def get(self, environment_id: EnvironmentId) -> int | None:
+        known = self._versions.get(environment_id)
+        if known is None or self._clock() - known[1] >= self._max_age:
+            return None
+        return known[0]
+
+    # Versions only move forward, so a late notification for an older one changes nothing.
+    def record(self, environment_id: EnvironmentId, version: int) -> None:
+        known = self._versions.get(environment_id)
+        if known is None or version >= known[0]:
+            self._versions[environment_id] = (version, self._clock())
 
 
 # Running totals for this instance, read on every metrics scrape.
@@ -86,9 +109,12 @@ class RulesetBroadcaster:
         *,
         resync_interval: float,
         feed_retry_delay: float = 1.0,
+        versions: KnownVersions | None = None,
     ) -> None:
         self._rulesets = rulesets
         self._feed = feed
+        # Without a cache, every version question goes to the database.
+        self._versions = versions or KnownVersions(max_age=0)
         self._resync_interval = resync_interval
         self._feed_retry_delay = feed_retry_delay
         self._subscriptions: defaultdict[EnvironmentId, set[RulesetSubscription]] = defaultdict(set)
@@ -96,6 +122,20 @@ class RulesetBroadcaster:
         self._building: defaultdict[EnvironmentId, asyncio.Lock] = defaultdict(asyncio.Lock)
         self.stats = BroadcastStats()
         self._closed = False
+
+    # What a poll checks its ETag against. The answer comes from memory while the feed keeps it
+    # fresh, and from the database otherwise.
+    async def current_versions(
+        self, environment_ids: Collection[EnvironmentId]
+    ) -> dict[EnvironmentId, int]:
+        known = {i: v for i in environment_ids if (v := self._versions.get(i)) is not None}
+        missing = [i for i in environment_ids if i not in known]
+        if missing:
+            looked_up = await self._rulesets().current_versions(missing)
+            for environment_id, version in looked_up.items():
+                self._versions.record(environment_id, version)
+            known.update(looked_up)
+        return known
 
     @property
     def stream_count(self) -> int:
@@ -131,6 +171,7 @@ class RulesetBroadcaster:
         if not watched:
             return
         for environment_id, version in (await self._rulesets().current_versions(watched)).items():
+            self._versions.record(environment_id, version)
             await self._publish(environment_id, version)
 
     def close(self) -> None:
@@ -146,6 +187,7 @@ class RulesetBroadcaster:
         while True:
             try:
                 async for change in self._feed.listen():
+                    self._versions.record(change.environment_id, change.version)
                     if self._subscriptions.get(change.environment_id):
                         await self._publish_safely(change.environment_id, change.version)
             except ChangeFeedUnavailableError as error:

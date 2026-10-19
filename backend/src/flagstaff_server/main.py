@@ -6,7 +6,7 @@ from flagstaff_server.api.app import create_app
 from flagstaff_server.api.container import Container
 from flagstaff_server.application.api_keys import ApiKeyService
 from flagstaff_server.application.authentication import AuthenticatedKeys
-from flagstaff_server.application.live import RulesetBroadcaster
+from flagstaff_server.application.live import KnownVersions, RulesetBroadcaster
 from flagstaff_server.application.rulesets import RulesetService
 from flagstaff_server.config import Settings
 from flagstaff_server.infrastructure.clock import SystemClock
@@ -40,6 +40,7 @@ def build_container(settings: Settings) -> Container:
         lambda: RulesetService(SqlUnitOfWork(session_factory)),
         changes,
         resync_interval=settings.ruleset_resync_seconds,
+        versions=KnownVersions(max_age=settings.version_cache_seconds),
     )
     return Container(
         uow_factory=lambda: SqlUnitOfWork(session_factory),

@@ -42,6 +42,7 @@ def test_defaults_suit_a_production_deployment() -> None:
     assert settings.stream_heartbeat_seconds == 15.0
     assert settings.ruleset_resync_seconds == 30.0
     assert settings.key_cache_seconds == 10.0
+    assert settings.version_cache_seconds == 5.0
 
 
 @pytest.mark.parametrize(
@@ -54,6 +55,7 @@ def test_defaults_suit_a_production_deployment() -> None:
         ("FLAGSTAFF_STREAM_HEARTBEAT_SECONDS", "0"),
         ("FLAGSTAFF_RULESET_RESYNC_SECONDS", "-5"),
         ("FLAGSTAFF_KEY_CACHE_SECONDS", "-1"),
+        ("FLAGSTAFF_VERSION_CACHE_SECONDS", "soon"),
     ],
 )
 def test_rejects_invalid_values(env: pytest.MonkeyPatch, name: str, value: str) -> None:

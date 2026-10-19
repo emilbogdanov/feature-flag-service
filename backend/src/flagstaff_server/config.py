@@ -27,3 +27,6 @@ class Settings(BaseSettings):
     # How long an instance trusts a key it has authenticated: a key revoked through another
     # instance keeps working on this one for up to this long. 0 checks the database every time.
     key_cache_seconds: NonNegativeFloat = 10.0
+    # How long an instance trusts a ruleset version it heard of, should the change feed lose a
+    # notification: the most a poll can be told 304 for rules that have since changed.
+    version_cache_seconds: NonNegativeFloat = 5.0

@@ -32,14 +32,14 @@ IfNoneMatch = Annotated[
 async def sdk_ruleset(
     environment: SdkEnvironment, container: ContainerDep, if_none_match: IfNoneMatch = None
 ) -> Response:
-    rulesets = container.rulesets()
     # Most polls come from SDKs that already hold the current rules. The version alone tells
-    # them so, without loading and compiling every flag in the project.
+    # them so, without loading and compiling every flag in the project, and this instance
+    # usually knows it without asking the database.
     if if_none_match is not None:
-        version = (await rulesets.current_versions([environment])).get(environment)
+        version = (await container.broadcaster.current_versions([environment])).get(environment)
         if version is not None and _is_held(version, if_none_match):
             return _not_modified(version)
-    return _ruleset_response(await rulesets.ruleset_for(environment), if_none_match)
+    return _ruleset_response(await container.rulesets().ruleset_for(environment), if_none_match)
 
 
 @router.post("/sdk/evaluate")
