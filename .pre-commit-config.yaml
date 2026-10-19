@@ -15,9 +15,9 @@ repos:
     hooks:
       - id: ruff-check
         args: [--fix]
-        files: ^(backend|sdk)/
+        files: ^(backend|sdk|loadtest)/
       - id: ruff-format
-        files: ^(backend|sdk)/
+        files: ^(backend|sdk|loadtest)/
 
   # Run from each project's own venv so mypy sees its installed dependencies and plugins.
   - repo: local
@@ -35,4 +35,11 @@ repos:
         language: system
         types: [python]
         files: ^sdk/
+        pass_filenames: false
+      - id: mypy-loadtest
+        name: mypy (loadtest)
+        entry: uv run --directory loadtest mypy
+        language: system
+        types: [python]
+        files: ^loadtest/
         pass_filenames: false
