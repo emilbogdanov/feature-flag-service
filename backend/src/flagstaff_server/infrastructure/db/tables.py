@@ -10,6 +10,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Identity,
+    Index,
     Integer,
     MetaData,
     String,
@@ -144,3 +145,10 @@ class AuditEntryRow(Base):
     environment_id: Mapped[UUID | None]
     subject: Mapped[str] = mapped_column(String(FLAG_KEY_MAX_LENGTH))
     changes: Mapped[dict[str, Any]] = mapped_column(JSONB)
+
+    # One per way the log is paged: everything newest first, or one project's newest first.
+    # Postgres walks either backwards, so ascending columns serve the descending order.
+    __table_args__ = (
+        Index("ix_audit_entries_at_id", "at", "id"),
+        Index("ix_audit_entries_project_id_at_id", "project_id", "at", "id"),
+    )

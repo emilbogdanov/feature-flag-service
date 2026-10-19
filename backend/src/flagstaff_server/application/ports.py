@@ -3,6 +3,7 @@ from datetime import datetime
 from types import TracebackType
 from typing import Protocol, Self
 
+from flagstaff_server.application.audit import AuditCursor
 from flagstaff_server.domain.api_keys import ApiKey
 from flagstaff_server.domain.audit import AuditEntry
 from flagstaff_server.domain.flags import Flag
@@ -73,6 +74,12 @@ class ApiKeyRepository(Protocol):
 class AuditLog(Protocol):
     # Written in the caller's transaction, so an entry exists exactly when its change does.
     async def add(self, entry: AuditEntry) -> None: ...
+
+    # Newest first, ties broken by id descending, starting right after the cursor. With a
+    # project id only that project's entries; without one, all of them.
+    async def page(
+        self, *, project_id: ProjectId | None, after: AuditCursor | None, limit: int
+    ) -> list[AuditEntry]: ...
 
 
 class UnitOfWork(Protocol):

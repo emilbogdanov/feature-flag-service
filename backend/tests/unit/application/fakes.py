@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from types import TracebackType
 from typing import Self
 
+from flagstaff_server.application.audit import AuditCursor
 from flagstaff_server.application.errors import StaleFlagError
 from flagstaff_server.domain.api_keys import ApiKey
 from flagstaff_server.domain.audit import AuditEntry
@@ -155,6 +156,17 @@ class InMemoryAuditLog:
 
     async def add(self, entry: AuditEntry) -> None:
         self._state.audit.append(entry)
+
+    async def page(
+        self, *, project_id: ProjectId | None, after: AuditCursor | None, limit: int
+    ) -> list[AuditEntry]:
+        entries = sorted(self._state.audit, key=lambda entry: (entry.at, entry.id), reverse=True)
+        return [
+            entry
+            for entry in entries
+            if (project_id is None or entry.project_id == project_id)
+            and (after is None or (entry.at, entry.id) < (after.at, after.entry_id))
+        ][:limit]
 
 
 # Each block works on a private copy of the committed state, so leaving it without commit()
