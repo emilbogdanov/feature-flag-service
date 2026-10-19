@@ -9,7 +9,7 @@ from pathlib import Path
 import httpx
 
 from flagstaff_load.evaluation import measure_evaluation
-from flagstaff_load.fanout import measure_fanout
+from flagstaff_load.fanout import FanoutSettings, measure_fanout
 from flagstaff_load.machine import describe_machine
 from flagstaff_load.poll import PollSettings, measure_polling
 from flagstaff_load.report import Results, render
@@ -52,6 +52,9 @@ def _parser() -> argparse.ArgumentParser:
         "--connections", type=int, default=10, help="connections per polling process (default: 10)"
     )
     parser.add_argument("--streams", type=int, default=1000, help="SDK streams (default: 1000)")
+    parser.add_argument(
+        "--stream-workers", type=int, default=4, help="processes holding the streams (default: 4)"
+    )
     parser.add_argument("--edits", type=int, default=20, help="edits to time (default: 20)")
     parser.add_argument("--output", type=Path, help="Markdown file to write instead of stdout")
     return parser
@@ -73,7 +76,9 @@ async def _run(args: argparse.Namespace) -> Results:
         full = await measure_polling(url, target.sdk_key, settings, revalidate=False)
 
         _progress(f"opening {args.streams} streams and timing {args.edits} edits")
-        fanout = await measure_fanout(url, admin, target, streams=args.streams, edits=args.edits)
+        fanout = await measure_fanout(
+            url, admin, target, FanoutSettings(args.streams, args.stream_workers, args.edits)
+        )
     return Results(
         measured_on=datetime.now(UTC).date(),
         machine=describe_machine(),

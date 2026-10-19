@@ -67,7 +67,8 @@ def render(results: Results) -> str:
         "",
         "## Pushing an edit to open streams",
         "",
-        f"{fanout.streams:,} SDK streams open through nginx, spread over both instances, and"
+        f"{fanout.streams:,} SDK streams open through nginx, held by {fanout.workers} processes"
+        " and spread over both instances, and"
         f" {fanout.edits} edits made one at a time through the admin API, each landing on"
         " whichever instance nginx picked and reaching the other through Redis. Time from"
         " sending the edit to a stream having the new ruleset:",

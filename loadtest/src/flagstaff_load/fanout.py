@@ -1,59 +1,34 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import os
+import sys
 import time
-from collections import Counter, defaultdict
-from contextlib import suppress
-from dataclasses import dataclass, field
-
-import httpx
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from flagstaff_load.stats import Summary
 from flagstaff_load.target import Target, switch
 
+if TYPE_CHECKING:
+    import httpx
 
-# How many of the streams have each ruleset version, so the test can wait for all of them
-# without polling every stream in a loop that would compete with them for the event loop.
-class Fleet:
-    def __init__(self, size: int) -> None:
-        self.size = size
-        self._received: Counter[int] = Counter()
-        self._complete: defaultdict[int, asyncio.Event] = defaultdict(asyncio.Event)
-
-    def received(self, version: int) -> None:
-        self._received[version] += 1
-        if self._received[version] == self.size:
-            self._complete[version].set()
-
-    async def all_have(self, version: int) -> None:
-        await self._complete[version].wait()
+_REPORT_LIMIT_BYTES = 64 * 2**20
 
 
-# One SSE stream's ruleset events, and when each version arrived. The time is taken as the
-# event ends, which is when an SDK would have the new rules.
-@dataclass
-class StreamWatcher:
-    fleet: Fleet
-    arrivals: dict[int, float] = field(default_factory=dict)
-    _event_id: int | None = None
-
-    @property
-    def latest(self) -> int | None:
-        return max(self.arrivals, default=None)
-
-    def feed(self, line: str, now: float) -> None:
-        if line.startswith("id:"):
-            self._event_id = int(line.removeprefix("id:").strip())
-        elif not line and self._event_id is not None:
-            if self._event_id not in self.arrivals:
-                self.arrivals[self._event_id] = now
-                self.fleet.received(self._event_id)
-            self._event_id = None
+@dataclass(frozen=True, slots=True)
+class FanoutSettings:
+    streams: int
+    # Processes holding the streams between them.
+    workers: int
+    edits: int
 
 
 @dataclass(frozen=True, slots=True)
 class FanoutResult:
     streams: int
+    workers: int
     edits: int
     open_seconds: float
     # From sending the edit until each stream had the new rules, one sample per stream and edit.
@@ -63,101 +38,106 @@ class FanoutResult:
 
 
 async def measure_fanout(
-    base_url: str, admin: httpx.AsyncClient, target: Target, *, streams: int, edits: int
+    base_url: str, admin: httpx.AsyncClient, target: Target, settings: FanoutSettings
 ) -> FanoutResult:
-    limits = httpx.Limits(max_connections=streams, max_keepalive_connections=0)
-    # The server sends a keep-alive every 15 s, so a minute without a byte is a dead stream.
-    timeout = httpx.Timeout(10.0, read=60.0)
-    headers = {"Authorization": f"Bearer {target.sdk_key}"}
-    async with httpx.AsyncClient(
-        base_url=base_url, headers=headers, limits=limits, timeout=timeout
-    ) as client:
-        opened_at = time.perf_counter()
-        open_streams = _OpenStreams(client, streams)
-        try:
-            # Every stream opens with the current ruleset, the same version for all of them.
-            version = await open_streams.first_version()
-            await open_streams.until_all_have(version, within=120.0)
-            open_seconds = time.perf_counter() - opened_at
-            delivery, last_delivery = await _time_edits(admin, target, open_streams, version, edits)
-        finally:
-            await open_streams.close()
+    streams, workers = settings.streams, settings.workers
+    shares = [streams // workers + (1 if n < streams % workers else 0) for n in range(workers)]
+    opened_at = time.perf_counter()
+    holders = [await _Holder.start(base_url, target.sdk_key, share) for share in shares if share]
+    try:
+        # Every stream opens with the current ruleset, the same version for all of them.
+        versions = {await holder.expect("ready", within=120.0) for holder in holders}
+        if len(versions) != 1:
+            raise RuntimeError(f"the streams opened on different versions: {sorted(versions)}")
+        open_seconds = time.perf_counter() - opened_at
+        sent_at = await _time_edits(admin, target, holders, versions.pop(), settings.edits)
+        arrivals: dict[int, list[float]] = {}
+        for holder in holders:
+            for version, times in (await holder.stop()).items():
+                arrivals.setdefault(version, []).extend(times)
+    finally:
+        for holder in holders:
+            holder.kill()
+    delays = {version: [t - sent for t in arrivals[version]] for version, sent in sent_at.items()}
     return FanoutResult(
         streams=streams,
-        edits=edits,
+        workers=len(holders),
+        edits=settings.edits,
         open_seconds=open_seconds,
-        delivery=delivery,
-        last_delivery=last_delivery,
+        delivery=Summary.of([delay for per_edit in delays.values() for delay in per_edit]),
+        last_delivery=Summary.of([max(per_edit) for per_edit in delays.values()]),
     )
 
 
 async def _time_edits(
-    admin: httpx.AsyncClient, target: Target, streams: _OpenStreams, version: int, edits: int
-) -> tuple[Summary, Summary]:
-    delivery: list[float] = []
-    last_delivery: list[float] = []
+    admin: httpx.AsyncClient, target: Target, holders: list[_Holder], version: int, edits: int
+) -> dict[int, float]:
+    sent_at: dict[int, float] = {}
     # The load flag starts switched on, so the first edit switches it off.
     on = False
     for _ in range(edits):
         # Every switch moves the environment's ruleset on by exactly one version.
         version += 1
-        sent = time.perf_counter()
+        sent_at[version] = time.time()
         await switch(admin, target, on=on)
         on = not on
-        await streams.until_all_have(version, within=30.0)
-        delays = [arrived - sent for arrived in streams.arrivals_of(version)]
-        delivery.extend(delays)
-        last_delivery.append(max(delays))
+        for holder in holders:
+            await holder.expect("have", version=version, within=30.0)
         # Lets the streams go quiet again, so each edit is timed on its own.
         await asyncio.sleep(0.25)
-    return Summary.of(delivery), Summary.of(last_delivery)
+    return sent_at
 
 
-class _OpenStreams:
-    def __init__(self, client: httpx.AsyncClient, count: int) -> None:
-        self._fleet = Fleet(count)
-        self._watchers = [StreamWatcher(self._fleet) for _ in range(count)]
-        self._tasks = [asyncio.create_task(self._follow(client, w)) for w in self._watchers]
+# One stream_worker process and the lines it sends back.
+class _Holder:
+    def __init__(self, process: asyncio.subprocess.Process) -> None:
+        self._process = process
 
-    async def first_version(self) -> int:
-        deadline = time.perf_counter() + 30.0
-        while (version := self._watchers[0].latest) is None:
-            self._raise_if_any_failed()
-            if time.perf_counter() > deadline:
-                raise RuntimeError("the first stream sent no ruleset within 30 s")
-            await asyncio.sleep(0.01)
-        return version
-
-    # A stream only ever ends by failing, so a finished one means the run can't complete.
-    async def until_all_have(self, version: int, *, within: float) -> None:
-        waiting = asyncio.ensure_future(self._fleet.all_have(version))
-        done, _ = await asyncio.wait(
-            [waiting, *self._tasks], timeout=within, return_when=asyncio.FIRST_COMPLETED
+    @classmethod
+    async def start(cls, base_url: str, sdk_key: str, count: int) -> _Holder:
+        process = await asyncio.create_subprocess_exec(
+            sys.executable,
+            "-m",
+            "flagstaff_load.stream_worker",
+            base_url,
+            str(count),
+            env={**os.environ, "FLAGSTAFF_LOAD_SDK_KEY": sdk_key},
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            # The closing report is one line holding every arrival time.
+            limit=_REPORT_LIMIT_BYTES,
         )
-        if waiting in done:
-            return
-        waiting.cancel()
-        self._raise_if_any_failed()
-        raise RuntimeError(f"not every stream had version {version} within {within:.0f} s")
+        return cls(process)
 
-    def arrivals_of(self, version: int) -> list[float]:
-        return [watcher.arrivals[version] for watcher in self._watchers]
+    async def expect(self, kind: str, *, within: float, version: int | None = None) -> int:
+        async with asyncio.timeout(within):
+            while True:
+                word, _, value = (await self._line()).partition(" ")
+                if word == "failed":
+                    raise RuntimeError(f"a stream worker stopped: {value}")
+                if word == kind and (version is None or int(value) == version):
+                    return int(value)
 
-    async def close(self) -> None:
-        for task in self._tasks:
-            task.cancel()
-        with suppress(asyncio.CancelledError):
-            await asyncio.gather(*self._tasks, return_exceptions=True)
+    async def stop(self) -> dict[int, list[float]]:
+        stdin = self._process.stdin
+        if stdin is None:
+            raise RuntimeError("the stream worker has no stdin")
+        stdin.write(b"stop\n")
+        await stdin.drain()
+        async with asyncio.timeout(30.0):
+            report = json.loads(await self._line())
+        await self._process.wait()
+        return {int(version): times for version, times in report.items()}
 
-    @staticmethod
-    async def _follow(client: httpx.AsyncClient, watcher: StreamWatcher) -> None:
-        async with client.stream("GET", "/sdk/stream") as response:
-            response.raise_for_status()
-            async for line in response.aiter_lines():
-                watcher.feed(line, time.perf_counter())
+    def kill(self) -> None:
+        if self._process.returncode is None:
+            self._process.kill()
 
-    def _raise_if_any_failed(self) -> None:
-        failed = [task for task in self._tasks if task.done() and not task.cancelled()]
-        if failed:
-            first = failed[0].exception()
-            raise RuntimeError(f"{len(failed)} streams failed, the first with: {first!r}")
+    async def _line(self) -> str:
+        stdout = self._process.stdout
+        if stdout is None:
+            raise RuntimeError("the stream worker has no stdout")
+        line = await stdout.readline()
+        if not line:
+            raise RuntimeError("a stream worker exited before it was done")
+        return line.decode().rstrip("\n")

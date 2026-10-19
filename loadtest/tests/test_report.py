@@ -32,6 +32,7 @@ RESULTS = Results(
     ),
     fanout=FanoutResult(
         streams=1000,
+        workers=4,
         edits=20,
         open_seconds=2.25,
         delivery=latencies(12.0, 20.0, 35.0),
