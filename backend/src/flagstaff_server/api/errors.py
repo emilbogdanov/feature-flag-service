@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from flagstaff.engine.errors import InvalidFlagError
+from flagstaff.engine.errors import InvalidContextError, InvalidFlagError
 
 from flagstaff_server.api.schemas.common import ErrorResponse
 from flagstaff_server.api.versions import VersionRequiredError
@@ -33,6 +33,7 @@ ERROR_RESPONSES: dict[type[Exception], tuple[int, str]] = {
     InvalidTargetingError: (422, "invalid_targeting"),
     # The engine's own check of a targeting or variants body, with the path of the bad part.
     InvalidFlagError: (422, "invalid_targeting"),
+    InvalidContextError: (422, "invalid_context"),
     InvalidApiKeyError: (401, "invalid_api_key"),
     PermissionDeniedError: (403, "forbidden"),
     ProjectNotFoundError: (404, "project_not_found"),

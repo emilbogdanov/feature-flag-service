@@ -8,7 +8,7 @@ from starlette.types import Lifespan
 
 from flagstaff_server.api.container import Container
 from flagstaff_server.api.errors import register_error_handlers
-from flagstaff_server.api.routes import api_keys, audit, flags, projects
+from flagstaff_server.api.routes import api_keys, audit, flags, projects, rulesets
 
 
 def create_app(container: Container) -> FastAPI:
@@ -31,7 +31,13 @@ def openapi_schema() -> dict[str, Any]:
 def _routed_app(lifespan: Lifespan[FastAPI] | None = None) -> FastAPI:
     app = FastAPI(title="Flagstaff", version=version("flagstaff-server"), lifespan=lifespan)
     register_error_handlers(app)
-    for router in (projects.router, flags.router, api_keys.router, audit.router):
+    for router in (
+        projects.router,
+        flags.router,
+        rulesets.router,
+        api_keys.router,
+        audit.router,
+    ):
         app.include_router(router)
 
     # Liveness only: answers as long as the process serves requests. It deliberately doesn't
