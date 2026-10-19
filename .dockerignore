@@ -1,0 +1,10 @@
+# Images are built from the repository root, and only the server, the SDK and the lock file go in.
+**
+!backend/pyproject.toml
+!backend/uv.lock
+!backend/alembic.ini
+!backend/migrations/
+!backend/src/
+!sdk/pyproject.toml
+!sdk/src/
+**/__pycache__
