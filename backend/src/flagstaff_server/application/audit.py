@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Final
 from uuid import uuid4
 
@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from flagstaff_server.application.ports import UnitOfWork
     from flagstaff_server.domain.audit import Actor, AuditAction
     from flagstaff_server.domain.ids import EnvironmentId, ProjectId
+    from flagstaff_server.domain.projects import Environment, Project
     from flagstaff_server.domain.values import Slug
 
 MAX_PAGE_SIZE: Final = 100
@@ -35,6 +36,9 @@ class AuditPage:
     entries: list[AuditEntry]
     # None on the last page.
     next_cursor: AuditCursor | None
+    # Whatever the entries name, so they can be shown by key instead of by id.
+    projects: Mapping[ProjectId, Project] = field(default_factory=dict)
+    environments: Mapping[EnvironmentId, Environment] = field(default_factory=dict)
 
 
 class AuditService:
@@ -52,10 +56,15 @@ class AuditService:
             project_id = (await require_project(uow, project_key)).id if project_key else None
             # One extra entry says whether another page exists without a COUNT query.
             entries = await uow.audit.page(project_id=project_id, after=after, limit=limit + 1)
-        if len(entries) <= limit:
-            return AuditPage(entries, next_cursor=None)
-        last = entries[limit - 1]
-        return AuditPage(entries[:limit], next_cursor=AuditCursor(last.at, last.id))
+            next_cursor = None
+            if len(entries) > limit:
+                entries = entries[:limit]
+                next_cursor = AuditCursor(entries[-1].at, entries[-1].id)
+            projects = await uow.projects.get_many({e.project_id for e in entries if e.project_id})
+            environments = await uow.environments.get_many(
+                {e.environment_id for e in entries if e.environment_id}
+            )
+        return AuditPage(entries, next_cursor, projects, environments)
 
 
 def audit_entry(
