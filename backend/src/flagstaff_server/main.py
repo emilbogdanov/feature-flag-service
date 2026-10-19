@@ -9,6 +9,7 @@ from flagstaff_server.application.rulesets import RulesetService
 from flagstaff_server.config import Settings
 from flagstaff_server.infrastructure.clock import SystemClock
 from flagstaff_server.infrastructure.db.unit_of_work import SqlUnitOfWork
+from flagstaff_server.infrastructure.logs import configure_logging
 from flagstaff_server.infrastructure.redis_changes import RedisRulesetChanges
 
 # asyncpg timeouts, in seconds: fail fast when the database is unreachable or a query hangs,
@@ -54,4 +55,6 @@ def build_container(settings: Settings) -> Container:
 
 def app() -> FastAPI:
     # Run with: uvicorn --factory flagstaff_server.main:app
-    return create_app(build_container(Settings()))
+    settings = Settings()
+    configure_logging(settings.log_level, settings.log_format)
+    return create_app(build_container(settings))
