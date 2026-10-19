@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, cast
 from flagstaff.engine.conditions import AttributeCondition, Operator, UserListCondition
 from flagstaff.engine.errors import InvalidFlagError
 from flagstaff.engine.flag import Flag, Rule
+from flagstaff.engine.ruleset import Ruleset
 from flagstaff.engine.serving import FixedVariant, Rollout, WeightedVariant
 from flagstaff.engine.variants import FlagKind, Variant
 
@@ -22,9 +23,37 @@ if TYPE_CHECKING:
 
 type Document = dict[str, JSONValue]
 
+# Bumped only for a change an older reader would get wrong rather than ignore; new optional
+# fields don't need it.
+RULESET_FORMAT = 1
+
 
 class WireFormatError(InvalidFlagError):
     pass
+
+
+def ruleset_to_document(ruleset: Ruleset) -> Document:
+    return {
+        "format": RULESET_FORMAT,
+        "version": ruleset.version,
+        # Sorted, so one ruleset version always serialises to the same bytes.
+        "flags": [flag_to_document(ruleset.flags[key]) for key in sorted(ruleset.flags)],
+    }
+
+
+def ruleset_from_document(document: object) -> Ruleset:
+    fields = _Object(document, "ruleset")
+    format_ = fields.integer("format")
+    if format_ != RULESET_FORMAT:
+        raise WireFormatError(
+            f"ruleset.format is {format_}; this version of the engine reads format {RULESET_FORMAT}"
+        )
+    flags = [
+        flag_from_document(item, path=item_path)
+        for item, item_path in _items(fields.field("flags"), fields.path_of("flags"))
+    ]
+    with _reported_at("ruleset"):
+        return Ruleset.of(fields.integer("version"), flags)
 
 
 def flag_to_document(flag: Flag) -> Document:
