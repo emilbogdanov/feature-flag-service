@@ -295,6 +295,27 @@ class TestVariants:
         with pytest.raises(InvalidTargetingError, match="new environments"):
             await service.change_variants(ACTOR, STOREFRONT, "new-checkout", variants=(ON,))
 
+    async def test_says_which_environment_still_serves_a_dropped_variant(
+        self, service: FlagService
+    ) -> None:
+        await create_new_checkout(service)
+        holdout = Variant("holdout", value=False)
+        await service.change_variants(
+            ACTOR, STOREFRONT, "new-checkout", variants=(ON, OFF, holdout)
+        )
+        await service.change_targeting(
+            ACTOR,
+            STOREFRONT,
+            "new-checkout",
+            PROD,
+            targeting=Targeting(
+                enabled=True, off_variant="off", fallthrough=FixedVariant("holdout")
+            ),
+        )
+
+        with pytest.raises(InvalidTargetingError, match=r"^prod: the fallthrough .*\['holdout'\]"):
+            await service.change_variants(ACTOR, STOREFRONT, "new-checkout", variants=(ON, OFF))
+
 
 class TestDetails:
     async def test_audits_only_what_changed_and_leaves_rulesets_alone(

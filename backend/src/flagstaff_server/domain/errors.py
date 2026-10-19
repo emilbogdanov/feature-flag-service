@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from flagstaff_server.domain.ids import EnvironmentId
     from flagstaff_server.domain.values import Slug
 
 
@@ -57,9 +58,14 @@ class FlagKeyTakenError(DomainError):
 
 
 # Raised when a change would leave a flag that the engine can't evaluate in some environment,
-# such as a rule serving a variant the flag no longer has.
+# such as a rule serving a variant the flag no longer has. environment_id names the environment
+# whose targeting it would break; the domain only knows ids, so services put the key in front
+# when the caller didn't name that environment themselves.
 class InvalidTargetingError(DomainError):
-    pass
+    def __init__(self, reason: str, *, environment_id: EnvironmentId | None = None) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.environment_id = environment_id
 
 
 class ArchivedFlagError(DomainError):

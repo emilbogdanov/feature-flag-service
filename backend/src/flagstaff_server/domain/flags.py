@@ -136,7 +136,7 @@ class Flag:
             created_at=at,
             updated_at=at,
         )
-        flag._compile_or_reject(variants, initial, "new environments")
+        flag._compile_or_reject(variants, initial)
         return flag
 
     @property
@@ -214,9 +214,9 @@ class Flag:
     # variant that some rule still serves is refused rather than breaking that environment.
     def change_variants(self, variants: tuple[Variant, ...], *, at: datetime) -> None:
         self._require_not_archived()
-        self._compile_or_reject(variants, self._initial_targeting, "new environments")
+        self._compile_or_reject(variants, self._initial_targeting)
         for environment_id, targeting in self._targeting.items():
-            self._compile_or_reject(variants, targeting, f"environment {environment_id}")
+            self._compile_or_reject(variants, targeting, environment_id=environment_id)
         self._variants = variants
         self._updated_at = at
 
@@ -224,7 +224,7 @@ class Flag:
         self, environment_id: EnvironmentId, targeting: Targeting, *, at: datetime
     ) -> None:
         self._require_not_archived()
-        self._compile_or_reject(self._variants, targeting, f"environment {environment_id}")
+        self._compile_or_reject(self._variants, targeting, environment_id=environment_id)
         self._targeting[environment_id] = targeting
         self._updated_at = at
 
@@ -259,13 +259,20 @@ class Flag:
         if self.is_archived:
             raise ArchivedFlagError(self._key)
 
+    # Without an environment id the targeting is the one new environments start with.
     def _compile_or_reject(
-        self, variants: Iterable[Variant], targeting: Targeting, where: str
+        self,
+        variants: Iterable[Variant],
+        targeting: Targeting,
+        *,
+        environment_id: EnvironmentId | None = None,
     ) -> CompiledFlag:
         try:
             return self._compile(variants, targeting)
         except InvalidFlagError as error:
-            raise InvalidTargetingError(f"{where}: {error}") from error
+            if environment_id is None:
+                raise InvalidTargetingError(f"new environments: {error}") from error
+            raise InvalidTargetingError(str(error), environment_id=environment_id) from error
 
     def _compile(self, variants: Iterable[Variant], targeting: Targeting) -> CompiledFlag:
         return CompiledFlag(

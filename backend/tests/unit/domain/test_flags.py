@@ -160,9 +160,10 @@ class TestVariants:
             at=LATER,
         )
 
-        with pytest.raises(InvalidTargetingError, match=f"environment {PROD}: the off variant"):
+        with pytest.raises(InvalidTargetingError, match=r"^the off variant") as raised:
             flag.change_variants((ON, OFF), at=LATER)
 
+        assert raised.value.environment_id == PROD
         assert len(flag.variants) == 3
 
     def test_refuses_to_drop_a_variant_new_environments_start_with(self) -> None:

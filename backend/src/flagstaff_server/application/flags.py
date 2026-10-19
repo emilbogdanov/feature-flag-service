@@ -14,7 +14,7 @@ from flagstaff_server.application.lookups import (
     require_project,
 )
 from flagstaff_server.domain.audit import AuditAction
-from flagstaff_server.domain.errors import FlagKeyTakenError
+from flagstaff_server.domain.errors import FlagKeyTakenError, InvalidTargetingError
 from flagstaff_server.domain.flags import Flag
 from flagstaff_server.domain.ids import FlagId
 
@@ -144,7 +144,15 @@ class FlagService:
     ) -> Flag:
         async def change(edit: _Edit) -> None:
             before = variants_to_document(edit.flag.variants)
-            edit.flag.change_variants(variants, at=self._clock.now())
+            try:
+                edit.flag.change_variants(variants, at=self._clock.now())
+            except InvalidTargetingError as error:
+                if error.environment_id is None:
+                    raise
+                # The caller named no environment, so say which one the variants would break.
+                broken = await edit.uow.environments.get(error.environment_id)
+                where = broken.key if broken else error.environment_id
+                raise InvalidTargetingError(f"{where}: {error.reason}") from error
             changes = {"variants": _before_and_after(before, variants_to_document(variants))}
             edit.record(
                 self._entry(edit, AuditAction.FLAG_VARIANTS_CHANGED, actor, changes),
