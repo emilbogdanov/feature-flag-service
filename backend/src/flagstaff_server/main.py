@@ -4,6 +4,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from flagstaff_server.api.app import create_app
 from flagstaff_server.api.container import Container
+from flagstaff_server.application.api_keys import ApiKeyService
+from flagstaff_server.application.authentication import AuthenticatedKeys
 from flagstaff_server.application.live import RulesetBroadcaster
 from flagstaff_server.application.rulesets import RulesetService
 from flagstaff_server.config import Settings
@@ -33,6 +35,7 @@ def build_container(settings: Settings) -> Container:
         await engine.dispose()
 
     changes = RedisRulesetChanges(redis)
+    clock = SystemClock()
     broadcaster = RulesetBroadcaster(
         lambda: RulesetService(SqlUnitOfWork(session_factory)),
         changes,
@@ -40,9 +43,13 @@ def build_container(settings: Settings) -> Container:
     )
     return Container(
         uow_factory=lambda: SqlUnitOfWork(session_factory),
-        clock=SystemClock(),
+        clock=clock,
         ruleset_changes=changes,
         broadcaster=broadcaster,
+        authenticated_keys=AuthenticatedKeys(
+            lambda: ApiKeyService(SqlUnitOfWork(session_factory), clock),
+            ttl=settings.key_cache_seconds,
+        ),
         stream_heartbeat_seconds=settings.stream_heartbeat_seconds,
         close=close,
     )

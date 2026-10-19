@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 from flagstaff_server.application.api_keys import ApiKeyService
 from flagstaff_server.application.audit import AuditService
+from flagstaff_server.application.authentication import AuthenticatedKeys
 from flagstaff_server.application.flags import FlagService
 from flagstaff_server.application.live import RulesetBroadcaster
 from flagstaff_server.application.ports import Clock, RulesetChangePublisher, UnitOfWork
@@ -23,6 +24,7 @@ class Container:
     ruleset_changes: RulesetChangePublisher
     # One per process: it holds this instance's SDK streams.
     broadcaster: RulesetBroadcaster
+    authenticated_keys: AuthenticatedKeys
     stream_heartbeat_seconds: float = 15.0
     close: Callable[[], Awaitable[None]] = _nothing_to_close
 

@@ -34,13 +34,14 @@ def test_reads_prefixed_environment_variables(env: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.usefixtures("env")
-def test_logs_json_at_info_unless_told_otherwise() -> None:
+def test_defaults_suit_a_production_deployment() -> None:
     settings = load_settings()
 
     assert settings.log_level == "INFO"
     assert settings.log_format == "json"
     assert settings.stream_heartbeat_seconds == 15.0
     assert settings.ruleset_resync_seconds == 30.0
+    assert settings.key_cache_seconds == 10.0
 
 
 @pytest.mark.parametrize(
@@ -52,6 +53,7 @@ def test_logs_json_at_info_unless_told_otherwise() -> None:
         ("FLAGSTAFF_LOG_FORMAT", "xml"),
         ("FLAGSTAFF_STREAM_HEARTBEAT_SECONDS", "0"),
         ("FLAGSTAFF_RULESET_RESYNC_SECONDS", "-5"),
+        ("FLAGSTAFF_KEY_CACHE_SECONDS", "-1"),
     ],
 )
 def test_rejects_invalid_values(env: pytest.MonkeyPatch, name: str, value: str) -> None:

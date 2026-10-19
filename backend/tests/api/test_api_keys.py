@@ -106,6 +106,18 @@ async def test_a_revoked_key_stops_working_and_stays_listed(
     ]
 
 
+async def test_a_key_in_use_stops_working_as_soon_as_it_is_revoked(
+    http: AsyncClient, as_admin: Headers
+) -> None:
+    issued = (await http.post("/api-keys", json=PROD_SDK_KEY, headers=as_admin)).json()
+    sdk = bearer(issued["secret"])
+    assert (await http.get("/sdk/ruleset", headers=sdk)).status_code == 200
+
+    await http.post(f"/api-keys/{issued['id']}/revoke", headers=as_admin)
+
+    assert (await http.get("/sdk/ruleset", headers=sdk)).status_code == 401
+
+
 async def test_revoking_an_unknown_key_is_not_found(http: AsyncClient, as_admin: Headers) -> None:
     response = await http.post(
         "/api-keys/8f14e45f-ceea-467f-a0e6-b2c9f3c0a1d4/revoke", headers=as_admin

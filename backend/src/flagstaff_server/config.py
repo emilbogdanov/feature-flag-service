@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import PositiveFloat, PostgresDsn, RedisDsn
+from pydantic import NonNegativeFloat, PositiveFloat, PostgresDsn, RedisDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,3 +24,6 @@ class Settings(BaseSettings):
     # How often each instance checks its streams' versions against the database, in case a
     # change notification was lost; the most a stream can fall behind while Redis is down.
     ruleset_resync_seconds: PositiveFloat = 30.0
+    # How long an instance trusts a key it has authenticated: a key revoked through another
+    # instance keeps working on this one for up to this long. 0 checks the database every time.
+    key_cache_seconds: NonNegativeFloat = 10.0

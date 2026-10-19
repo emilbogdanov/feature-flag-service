@@ -7,6 +7,7 @@ from httpx import ASGITransport, AsyncClient
 from flagstaff_server.api.app import create_app
 from flagstaff_server.api.container import Container
 from flagstaff_server.application.api_keys import ApiKeyService
+from flagstaff_server.application.authentication import AuthenticatedKeys
 from flagstaff_server.application.live import RulesetBroadcaster
 from flagstaff_server.application.projects import ProjectService
 from flagstaff_server.application.rulesets import RulesetService
@@ -32,7 +33,8 @@ def clock() -> FixedClock:
 
 @pytest.fixture
 def container(uow: FakeUnitOfWork, clock: FixedClock) -> Container:
-    # One shared fake stands in for the database across requests.
+    # One shared fake stands in for the database across requests. The broadcaster keeps no
+    # versions: requests that don't start the app never run the feed that would refresh them.
     changes = InMemoryRulesetChanges()
     broadcaster = RulesetBroadcaster(
         lambda: RulesetService(uow), changes, resync_interval=3600, feed_retry_delay=0.01
@@ -42,6 +44,8 @@ def container(uow: FakeUnitOfWork, clock: FixedClock) -> Container:
         clock=clock,
         ruleset_changes=changes,
         broadcaster=broadcaster,
+        # Long enough that a revocation only takes effect because the route forgets the key.
+        authenticated_keys=AuthenticatedKeys(lambda: ApiKeyService(uow, clock), ttl=3600),
         stream_heartbeat_seconds=0.2,
     )
 

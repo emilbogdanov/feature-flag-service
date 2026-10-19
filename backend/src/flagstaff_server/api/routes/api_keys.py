@@ -40,7 +40,9 @@ async def list_api_keys(container: ContainerDep) -> list[ApiKeyResponse]:
 async def revoke_api_key(
     key_id: UUID, actor: AdminActor, container: ContainerDep
 ) -> ApiKeyResponse:
-    return ApiKeyResponse.of(await container.api_keys().revoke(actor, ApiKeyId(key_id)))
+    revoked = await container.api_keys().revoke(actor, ApiKeyId(key_id))
+    container.authenticated_keys.forget(revoked.key.id)
+    return ApiKeyResponse.of(revoked)
 
 
 async def _issue(body: IssueApiKey, actor: AdminActor, container: ContainerDep) -> IssuedApiKey:

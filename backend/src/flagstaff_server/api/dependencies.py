@@ -30,7 +30,7 @@ async def get_current_key(
     # auto_error is off so a missing key goes through the same 401 path as a wrong one.
     if credentials is None:
         raise InvalidApiKeyError
-    return await container.api_keys().authenticate(credentials.credentials)
+    return await container.authenticated_keys.authenticate(credentials.credentials)
 
 
 CurrentKey = Annotated[ApiKey, Depends(get_current_key)]
