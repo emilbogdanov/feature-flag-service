@@ -19,7 +19,7 @@ from flagstaff_server.domain.flags import Targeting
 from flagstaff_server.domain.values import Description, Name, Slug
 from flagstaff_server.infrastructure.db.tables import AuditEntryRow
 from flagstaff_server.infrastructure.db.unit_of_work import SqlUnitOfWork
-from tests.unit.application.fakes import FixedClock
+from tests.unit.application.fakes import FixedClock, InMemoryRulesetChanges
 
 NOW = datetime(2026, 10, 19, 9, 30, tzinfo=UTC)
 CLI = Actor.command_line()
@@ -41,7 +41,7 @@ async def test_a_flag_goes_from_created_to_targeted_in_prod(
     uow: SqlUnitOfWork, clock: FixedClock, session_factory: async_sessionmaker[AsyncSession]
 ) -> None:
     await ProjectService(uow, clock).create_project(CLI, key=STOREFRONT, name=Name("Storefront"))
-    flags = FlagService(uow, clock)
+    flags = FlagService(uow, clock, InMemoryRulesetChanges())
     await flags.create_flag(
         CLI,
         STOREFRONT,
@@ -132,7 +132,7 @@ async def test_two_kill_switches_thrown_at_once_both_take_effect(
     uow: SqlUnitOfWork, clock: FixedClock, session_factory: async_sessionmaker[AsyncSession]
 ) -> None:
     await ProjectService(uow, clock).create_project(CLI, key=STOREFRONT, name=Name("Storefront"))
-    await FlagService(uow, clock).create_flag(
+    await FlagService(uow, clock, InMemoryRulesetChanges()).create_flag(
         CLI,
         STOREFRONT,
         key="new-checkout",
@@ -147,14 +147,16 @@ async def test_two_kill_switches_thrown_at_once_both_take_effect(
     # Each switch gets its own unit of work, as two API requests would.
     await asyncio.gather(
         *(
-            FlagService(SqlUnitOfWork(session_factory), clock).enable(
+            FlagService(SqlUnitOfWork(session_factory), clock, InMemoryRulesetChanges()).enable(
                 CLI, STOREFRONT, "new-checkout", Slug(environment)
             )
             for environment in ["dev", "staging", "prod"]
         )
     )
 
-    flag = await FlagService(uow, clock).get_flag(STOREFRONT, "new-checkout")
+    flag = await FlagService(uow, clock, InMemoryRulesetChanges()).get_flag(
+        STOREFRONT, "new-checkout"
+    )
     environments = await ProjectService(uow, clock).list_environments(STOREFRONT)
     assert flag.version == 4
     assert all(flag.targeting_in(environment.id).enabled for environment in environments)

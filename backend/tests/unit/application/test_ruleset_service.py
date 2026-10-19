@@ -11,7 +11,7 @@ from flagstaff_server.application.rulesets import RulesetService
 from flagstaff_server.domain.audit import Actor
 from flagstaff_server.domain.errors import EnvironmentNotFoundError
 from flagstaff_server.domain.values import Description, Name, Slug
-from tests.unit.application.fakes import FakeUnitOfWork, FixedClock
+from tests.unit.application.fakes import FakeUnitOfWork, FixedClock, InMemoryRulesetChanges
 
 NOW = datetime(2026, 10, 19, 9, 30, tzinfo=UTC)
 CLI = Actor.command_line()
@@ -32,7 +32,7 @@ def uow() -> FakeUnitOfWork:
 
 @pytest.fixture
 def flags(uow: FakeUnitOfWork) -> FlagService:
-    return FlagService(uow, FixedClock(NOW))
+    return FlagService(uow, FixedClock(NOW), InMemoryRulesetChanges())
 
 
 @pytest.fixture

@@ -11,6 +11,7 @@ from flagstaff.engine.variants import FlagKind, Variant
 from flagstaff_server.application.errors import StaleFlagError
 from flagstaff_server.application.flags import UNVERSIONED_EDIT_ATTEMPTS, FlagService
 from flagstaff_server.application.projects import ProjectService
+from flagstaff_server.application.rulesets import RulesetChange
 from flagstaff_server.domain.audit import Actor, AuditAction
 from flagstaff_server.domain.errors import (
     ArchivedFlagError,
@@ -22,7 +23,12 @@ from flagstaff_server.domain.errors import (
 )
 from flagstaff_server.domain.flags import Flag, Targeting
 from flagstaff_server.domain.values import Description, Name, Slug
-from tests.unit.application.fakes import FakeUnitOfWork, FixedClock, ServerState
+from tests.unit.application.fakes import (
+    FakeUnitOfWork,
+    FixedClock,
+    InMemoryRulesetChanges,
+    ServerState,
+)
 
 NOW = datetime(2026, 10, 19, 9, 30, tzinfo=UTC)
 ACTOR = Actor.command_line()
@@ -49,8 +55,13 @@ def clock() -> FixedClock:
 
 
 @pytest.fixture
-def service(uow: FakeUnitOfWork, clock: FixedClock) -> FlagService:
-    return FlagService(uow, clock)
+def changes() -> InMemoryRulesetChanges:
+    return InMemoryRulesetChanges()
+
+
+@pytest.fixture
+def service(uow: FakeUnitOfWork, clock: FixedClock, changes: InMemoryRulesetChanges) -> FlagService:
+    return FlagService(uow, clock, changes)
 
 
 @pytest.fixture(autouse=True)
@@ -202,6 +213,57 @@ class TestTargeting:
             )
 
         assert uow.committed is before
+
+
+class TestAnnouncements:
+    async def test_a_new_flag_announces_every_environments_new_version(
+        self, service: FlagService, changes: InMemoryRulesetChanges
+    ) -> None:
+        await create_new_checkout(service)
+
+        assert sorted(change.version for change in changes.announced) == [1, 1, 1]
+
+    async def test_a_switch_announces_only_its_environment(
+        self, service: FlagService, uow: FakeUnitOfWork, changes: InMemoryRulesetChanges
+    ) -> None:
+        await create_new_checkout(service)
+        changes.announced.clear()
+
+        await service.enable(ACTOR, STOREFRONT, "new-checkout", PROD)
+
+        [prod] = [e for e in uow.committed.environments.values() if e.key == PROD]
+        assert changes.announced == [RulesetChange(prod.id, 2)]
+
+    async def test_nothing_is_announced_for_a_change_that_did_not_happen(
+        self, service: FlagService, changes: InMemoryRulesetChanges
+    ) -> None:
+        await create_new_checkout(service)
+        changes.announced.clear()
+
+        await service.disable(ACTOR, STOREFRONT, "new-checkout", PROD)
+        await service.change_details(
+            ACTOR,
+            STOREFRONT,
+            "new-checkout",
+            name=Name("Checkout v2"),
+            description=Description(),
+        )
+        with pytest.raises(InvalidTargetingError):
+            await service.change_variants(ACTOR, STOREFRONT, "new-checkout", variants=(ON,))
+
+        assert changes.announced == []
+
+    async def test_a_save_that_lost_a_race_announces_nothing(
+        self, service: FlagService, uow: FakeUnitOfWork, changes: InMemoryRulesetChanges
+    ) -> None:
+        flag = await create_new_checkout(service)
+        changes.announced.clear()
+        uow.before_next_commit = someone_else_saves(flag)
+
+        with pytest.raises(StaleFlagError):
+            await service.enable(ACTOR, STOREFRONT, "new-checkout", PROD, expected_version=1)
+
+        assert changes.announced == []
 
 
 class TestOptimisticLocking:

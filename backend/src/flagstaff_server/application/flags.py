@@ -13,6 +13,7 @@ from flagstaff_server.application.lookups import (
     require_flag,
     require_project,
 )
+from flagstaff_server.application.rulesets import RulesetChange
 from flagstaff_server.domain.audit import AuditAction
 from flagstaff_server.domain.errors import FlagKeyTakenError, InvalidTargetingError
 from flagstaff_server.domain.flags import Flag
@@ -23,7 +24,7 @@ if TYPE_CHECKING:
 
     from flagstaff.engine.variants import FlagKind, JSONValue, Variant
 
-    from flagstaff_server.application.ports import Clock, UnitOfWork
+    from flagstaff_server.application.ports import Clock, RulesetChangePublisher, UnitOfWork
     from flagstaff_server.domain.audit import Actor, AuditEntry
     from flagstaff_server.domain.flags import Targeting
     from flagstaff_server.domain.ids import EnvironmentId
@@ -38,9 +39,10 @@ UNVERSIONED_EDIT_ATTEMPTS: Final = 3
 # Edits take the version the caller last read. None skips the check, which is what a kill
 # switch wants: turning a flag off must work even if someone edited it a second ago.
 class FlagService:
-    def __init__(self, uow: UnitOfWork, clock: Clock) -> None:
+    def __init__(self, uow: UnitOfWork, clock: Clock, changes: RulesetChangePublisher) -> None:
         self._uow = uow
         self._clock = clock
+        self._changes = changes
 
     async def create_flag(
         self,
@@ -74,7 +76,9 @@ class FlagService:
             )
             await uow.flags.add(flag)
             # A new flag shows up, switched off, in every environment's ruleset.
-            await uow.environments.bump_ruleset_versions(await self._environment_ids(uow, project))
+            versions = await uow.environments.bump_ruleset_versions(
+                await self._environment_ids(uow, project)
+            )
             await uow.audit.add(
                 audit_entry(
                     AuditAction.FLAG_CREATED,
@@ -93,6 +97,7 @@ class FlagService:
                 )
             )
             await uow.commit()
+        await self._announce(versions)
         return flag
 
     async def get_flag(self, project_key: Slug, key: str) -> Flag:
@@ -273,14 +278,21 @@ class FlagService:
                 raise StaleFlagError(key, expected=expected_version, actual=flag.version)
             edit = _Edit(uow, project, flag)
             await change(edit)
-            if edit.entries:
-                await uow.flags.update(flag)
-                if edit.affected:
-                    await uow.environments.bump_ruleset_versions(edit.affected)
-                for entry in edit.entries:
-                    await uow.audit.add(entry)
-                await uow.commit()
+            if not edit.entries:
+                return flag
+            await uow.flags.update(flag)
+            versions = await uow.environments.bump_ruleset_versions(edit.affected)
+            for entry in edit.entries:
+                await uow.audit.add(entry)
+            await uow.commit()
+        await self._announce(versions)
         return flag
+
+    # Only after the commit: an instance that hears of a version must find it in the database.
+    async def _announce(self, versions: Mapping[EnvironmentId, int]) -> None:
+        await self._changes.announce(
+            [RulesetChange(environment_id, version) for environment_id, version in versions.items()]
+        )
 
     def _entry(
         self,

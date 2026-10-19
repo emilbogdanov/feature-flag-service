@@ -1,4 +1,5 @@
-from collections.abc import Callable, Collection
+import asyncio
+from collections.abc import AsyncIterator, Callable, Collection
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
@@ -6,7 +7,8 @@ from types import TracebackType
 from typing import Self
 
 from flagstaff_server.application.audit import AuditCursor
-from flagstaff_server.application.errors import StaleFlagError
+from flagstaff_server.application.errors import ChangeFeedLostError, StaleFlagError
+from flagstaff_server.application.rulesets import RulesetChange
 from flagstaff_server.domain.api_keys import ApiKey
 from flagstaff_server.domain.audit import AuditEntry
 from flagstaff_server.domain.errors import (
@@ -249,3 +251,35 @@ class FakeUnitOfWork:
     def _state(self) -> ServerState:
         assert self._working is not None, "repository used outside a unit of work"
         return self._working
+
+
+# Both ends of the change bus in one: what one instance announces, every listener hears.
+class InMemoryRulesetChanges:
+    def __init__(self) -> None:
+        self.announced: list[RulesetChange] = []
+        self._listeners: list[asyncio.Queue[RulesetChange | None]] = []
+
+    async def announce(self, changes: Collection[RulesetChange]) -> None:
+        self.announced += changes
+        for listener in self._listeners:
+            for change in changes:
+                listener.put_nowait(change)
+
+    async def listen(self) -> AsyncIterator[RulesetChange]:
+        queue: asyncio.Queue[RulesetChange | None] = asyncio.Queue()
+        self._listeners.append(queue)
+        try:
+            while (change := await queue.get()) is not None:
+                yield change
+            raise ChangeFeedLostError("the in-memory feed was cut")
+        finally:
+            self._listeners.remove(queue)
+
+    # Ends every current listen() with ChangeFeedLostError, as a dropped Redis connection would.
+    def cut(self) -> None:
+        for listener in self._listeners:
+            listener.put_nowait(None)
+
+    @property
+    def listeners(self) -> int:
+        return len(self._listeners)

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from flagstaff_server.application.api_keys import ApiKeyService
 from flagstaff_server.application.audit import AuditService
 from flagstaff_server.application.flags import FlagService
-from flagstaff_server.application.ports import Clock, UnitOfWork
+from flagstaff_server.application.ports import Clock, RulesetChangePublisher, UnitOfWork
 from flagstaff_server.application.projects import ProjectService
 from flagstaff_server.application.rulesets import RulesetService
 
@@ -19,13 +19,14 @@ async def _nothing_to_close() -> None:
 class Container:
     uow_factory: Callable[[], UnitOfWork]
     clock: Clock
+    ruleset_changes: RulesetChangePublisher
     close: Callable[[], Awaitable[None]] = _nothing_to_close
 
     def projects(self) -> ProjectService:
         return ProjectService(self.uow_factory(), self.clock)
 
     def flags(self) -> FlagService:
-        return FlagService(self.uow_factory(), self.clock)
+        return FlagService(self.uow_factory(), self.clock, self.ruleset_changes)
 
     def api_keys(self) -> ApiKeyService:
         return ApiKeyService(self.uow_factory(), self.clock)

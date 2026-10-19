@@ -10,7 +10,7 @@ from flagstaff_server.application.api_keys import ApiKeyService
 from flagstaff_server.application.projects import ProjectService
 from flagstaff_server.domain.audit import Actor
 from flagstaff_server.domain.values import Name, Slug
-from tests.unit.application.fakes import FakeUnitOfWork, FixedClock
+from tests.unit.application.fakes import FakeUnitOfWork, FixedClock, InMemoryRulesetChanges
 
 type Headers = dict[str, str]
 
@@ -31,7 +31,9 @@ def clock() -> FixedClock:
 @pytest.fixture
 async def http(uow: FakeUnitOfWork, clock: FixedClock) -> AsyncIterator[AsyncClient]:
     # One shared fake stands in for the database across requests.
-    container = Container(uow_factory=lambda: uow, clock=clock)
+    container = Container(
+        uow_factory=lambda: uow, clock=clock, ruleset_changes=InMemoryRulesetChanges()
+    )
     transport = ASGITransport(app=create_app(container))
     async with AsyncClient(transport=transport, base_url="http://flagstaff.test") as client:
         yield client

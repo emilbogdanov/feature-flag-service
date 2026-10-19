@@ -23,10 +23,10 @@ pytestmark = pytest.mark.usefixtures("engine")
 
 
 @pytest.fixture
-async def http(database_url: str) -> AsyncIterator[AsyncClient]:
+async def http(database_url: str, redis_url: str) -> AsyncIterator[AsyncClient]:
     settings = Settings(
         database_url=PostgresDsn(database_url),
-        redis_url=RedisDsn("redis://localhost:6379/0"),
+        redis_url=RedisDsn(redis_url),
         _env_file=None,
     )
     app = create_app(build_container(settings))
