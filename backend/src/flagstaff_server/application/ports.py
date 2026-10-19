@@ -1,9 +1,10 @@
-from collections.abc import Collection
+from collections.abc import AsyncIterator, Collection
 from datetime import datetime
 from types import TracebackType
 from typing import Protocol, Self
 
 from flagstaff_server.application.audit import AuditCursor
+from flagstaff_server.application.rulesets import RulesetChange
 from flagstaff_server.domain.api_keys import ApiKey
 from flagstaff_server.domain.audit import AuditEntry
 from flagstaff_server.domain.flags import Flag
@@ -90,6 +91,19 @@ class AuditLog(Protocol):
     async def page(
         self, *, project_id: ProjectId | None, after: AuditCursor | None, limit: int
     ) -> list[AuditEntry]: ...
+
+
+class RulesetChangePublisher(Protocol):
+    # Called after the change committed, so it must not fail the request that made it: a
+    # publisher that can't reach its broker logs and returns. Streams still converge, because
+    # every instance also checks versions against the database on a timer.
+    async def announce(self, changes: Collection[RulesetChange]) -> None: ...
+
+
+class RulesetChangeFeed(Protocol):
+    # Changes announced by any instance from the moment of subscribing, until the connection
+    # drops with ChangeFeedLostError.
+    def listen(self) -> AsyncIterator[RulesetChange]: ...
 
 
 class UnitOfWork(Protocol):

@@ -11,6 +11,7 @@ dependencies = [
     "fastapi>=0.148",
     "flagstaff",
     "pydantic-settings>=2.16",
+    "redis>=8.1",
     "sqlalchemy[asyncio]>=2.1",
     "uvicorn>=0.54",
 ]
@@ -23,7 +24,7 @@ dev = [
     "pytest>=9.1",
     "pytest-asyncio>=1.4",
     "ruff>=0.17.1",
-    "testcontainers[postgres]>=4.15",
+    "testcontainers[postgres,redis]>=4.15",
 ]
 
 # The server evaluates flags with the same engine the SDK ships, so both always agree.

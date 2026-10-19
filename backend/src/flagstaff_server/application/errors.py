@@ -36,3 +36,9 @@ class ApiKeyNotFoundError(ApplicationError):
     def __init__(self, key_id: ApiKeyId) -> None:
         super().__init__(f"API key {key_id} does not exist")
         self.key_id = key_id
+
+
+# The connection that carries ruleset changes between API instances dropped. Raised by the feed
+# so its listener can resubscribe; changes missed meanwhile are caught by the next resync.
+class ChangeFeedLostError(ApplicationError):
+    pass

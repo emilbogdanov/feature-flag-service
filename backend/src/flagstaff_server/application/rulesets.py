@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from flagstaff.engine.ruleset import Ruleset
@@ -11,6 +12,14 @@ if TYPE_CHECKING:
     from flagstaff_server.domain.ids import EnvironmentId
     from flagstaff_server.domain.projects import Environment
     from flagstaff_server.domain.values import Slug
+
+
+# An environment's ruleset moved to a new version. Small on purpose: every API instance reads
+# the rules themselves from the database, once, however many of its streams want them.
+@dataclass(frozen=True, slots=True)
+class RulesetChange:
+    environment_id: EnvironmentId
+    version: int
 
 
 class RulesetService:
