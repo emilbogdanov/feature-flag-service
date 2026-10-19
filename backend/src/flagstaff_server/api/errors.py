@@ -59,7 +59,7 @@ def register_error_handlers(app: FastAPI) -> None:
         app.add_exception_handler(error_type, _to_response)
     app.exception_handler(RequestValidationError)(_malformed_request)
     # Everything else is a bug, including a business error nobody mapped. Starlette answers it
-    # with this handler and then re-raises it, so the server logs the full traceback.
+    # with this handler and then re-raises it, for request tracing to log with the request id.
     app.add_exception_handler(Exception, _unexpected)
 
 

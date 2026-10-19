@@ -2,14 +2,15 @@ import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from importlib.metadata import version
-from typing import Any
+from typing import Any, override
 
 from fastapi import FastAPI
-from starlette.types import Lifespan
+from starlette.types import ASGIApp, Lifespan
 
 from flagstaff_server.api.container import Container
 from flagstaff_server.api.errors import register_error_handlers
 from flagstaff_server.api.routes import api_keys, audit, flags, projects, rulesets, stream
+from flagstaff_server.api.tracing import RequestTracing
 
 
 def create_app(container: Container) -> FastAPI:
@@ -35,8 +36,16 @@ def openapi_schema() -> dict[str, Any]:
     return _routed_app().openapi()
 
 
+# add_middleware would put request tracing inside Starlette's error middleware, where a crash
+# is only logged after the request's context is gone.
+class _TracedFastAPI(FastAPI):
+    @override
+    def build_middleware_stack(self) -> ASGIApp:
+        return RequestTracing(super().build_middleware_stack())
+
+
 def _routed_app(lifespan: Lifespan[FastAPI] | None = None) -> FastAPI:
-    app = FastAPI(title="Flagstaff", version=version("flagstaff-server"), lifespan=lifespan)
+    app = _TracedFastAPI(title="Flagstaff", version=version("flagstaff-server"), lifespan=lifespan)
     register_error_handlers(app)
     for router in (
         projects.router,
