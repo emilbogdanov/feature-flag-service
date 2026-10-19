@@ -5,15 +5,9 @@ from flagstaff.engine.context import EvaluationContext
 from flagstaff.engine.wire import ruleset_from_document
 from httpx import ASGITransport, AsyncClient
 from pydantic import PostgresDsn, RedisDsn
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from flagstaff_server.api.app import create_app
-from flagstaff_server.application.api_keys import ApiKeyService
 from flagstaff_server.config import Settings
-from flagstaff_server.domain.audit import Actor
-from flagstaff_server.domain.values import Name
-from flagstaff_server.infrastructure.clock import SystemClock
-from flagstaff_server.infrastructure.db.unit_of_work import SqlUnitOfWork
 from flagstaff_server.main import build_container
 
 FLAGS = "/projects/storefront/flags"
@@ -34,14 +28,6 @@ async def http(database_url: str, redis_url: str) -> AsyncIterator[AsyncClient]:
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://flagstaff.test") as client:
             yield client
-
-
-@pytest.fixture
-async def as_admin(session_factory: async_sessionmaker[AsyncSession]) -> dict[str, str]:
-    issued = await ApiKeyService(SqlUnitOfWork(session_factory), SystemClock()).issue_admin_key(
-        Actor.command_line(), name=Name("Release tooling")
-    )
-    return {"Authorization": f"Bearer {issued.secret}"}
 
 
 async def test_an_sdk_reads_the_rules_an_admin_just_set(

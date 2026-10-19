@@ -45,9 +45,18 @@ async def next_event(stream: AsyncIterator[Event], *, kind: str, within: float =
 # A real server rather than httpx's ASGI transport, which waits for the whole response body and
 # so never returns from an endless stream.
 class RunningServer:
-    def __init__(self, app: FastAPI) -> None:
+    # Port 0 lets the OS pick; pass a port to bring a server back where clients expect it. The
+    # short graceful timeout is what lets a test stop a server that SDK streams still hold open.
+    def __init__(self, app: FastAPI, *, port: int = 0) -> None:
         self._server = uvicorn.Server(
-            uvicorn.Config(app, host="127.0.0.1", port=0, log_level="warning", lifespan="on")
+            uvicorn.Config(
+                app,
+                host="127.0.0.1",
+                port=port,
+                log_level="critical",
+                lifespan="on",
+                timeout_graceful_shutdown=1,
+            )
         )
         self._task: asyncio.Task[None] | None = None
 

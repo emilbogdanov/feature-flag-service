@@ -16,6 +16,12 @@ from sqlalchemy.ext.asyncio import (
 from testcontainers.community.postgres import PostgresContainer
 from testcontainers.community.redis import RedisContainer
 
+from flagstaff_server.application.api_keys import ApiKeyService
+from flagstaff_server.domain.audit import Actor
+from flagstaff_server.domain.values import Name
+from flagstaff_server.infrastructure.clock import SystemClock
+from flagstaff_server.infrastructure.db.unit_of_work import SqlUnitOfWork
+
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 POSTGRES_IMAGE = "postgres:18-alpine"
 REDIS_IMAGE = "redis:8-alpine"
@@ -81,3 +87,12 @@ async def engine(database_url: str) -> AsyncIterator[AsyncEngine]:
 @pytest.fixture
 def session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
     return async_sessionmaker(engine, expire_on_commit=False)
+
+
+# An admin key issued the way the CLI issues one, for tests that drive a real server over HTTP.
+@pytest.fixture
+async def as_admin(session_factory: async_sessionmaker[AsyncSession]) -> dict[str, str]:
+    issued = await ApiKeyService(SqlUnitOfWork(session_factory), SystemClock()).issue_admin_key(
+        Actor.command_line(), name=Name("Release tooling")
+    )
+    return {"Authorization": f"Bearer {issued.secret}"}
