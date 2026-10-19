@@ -56,6 +56,8 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # asserts, fake credentials, literal expectations, tests that request many fixtures
 "tests/**" = ["S101", "S105", "S106", "PLR2004", "PLR0917"]
+# the stack tests drive docker compose, found on PATH
+"tests/stack/**" = ["S101", "S105", "S106", "PLR2004", "PLR0917", "S603", "S607"]
 
 [tool.mypy]
 strict = true
