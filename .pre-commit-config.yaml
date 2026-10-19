@@ -1,0 +1,38 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+
+  # Each project keeps its own ruff settings; ruff picks up the pyproject.toml nearest each file.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.1
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+        files: ^(backend|sdk)/
+      - id: ruff-format
+        files: ^(backend|sdk)/
+
+  # Run from each project's own venv so mypy sees its installed dependencies and plugins.
+  - repo: local
+    hooks:
+      - id: mypy-backend
+        name: mypy (backend)
+        entry: uv run --directory backend mypy
+        language: system
+        types: [python]
+        files: ^backend/
+        pass_filenames: false
+      - id: mypy-sdk
+        name: mypy (sdk)
+        entry: uv run --directory sdk mypy
+        language: system
+        types: [python]
+        files: ^sdk/
+        pass_filenames: false
