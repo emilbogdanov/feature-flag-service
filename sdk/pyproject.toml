@@ -62,7 +62,7 @@ ignore = [
 
 [tool.mypy]
 strict = true
-# The oldest supported Python, so nothing newer slips into the published package.
+# The oldest supported Python, so nothing newer slips into the built package.
 python_version = "3.12"
 warn_unreachable = true
 enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool", "possibly-undefined"]

@@ -6,7 +6,7 @@ never waits on the network. The server pushes every change over server-sent even
 swaps the new rules in as they arrive.
 
 ```
-pip install flagstaff
+pip install "flagstaff @ git+https://github.com/emilbogdanov/feature-flag-service@v0.1.0#subdirectory=sdk"
 ```
 
 Python 3.12 or newer. The only dependency is httpx.

@@ -6,7 +6,6 @@ Python SDK that the server keeps current over server-sent events.
 [![backend](https://github.com/emilbogdanov/feature-flag-service/actions/workflows/backend.yml/badge.svg)](https://github.com/emilbogdanov/feature-flag-service/actions/workflows/backend.yml)
 [![sdk](https://github.com/emilbogdanov/feature-flag-service/actions/workflows/sdk.yml/badge.svg)](https://github.com/emilbogdanov/feature-flag-service/actions/workflows/sdk.yml)
 [![stack](https://github.com/emilbogdanov/feature-flag-service/actions/workflows/stack.yml/badge.svg)](https://github.com/emilbogdanov/feature-flag-service/actions/workflows/stack.yml)
-[![PyPI](https://img.shields.io/pypi/v/flagstaff)](https://pypi.org/project/flagstaff/)
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -249,6 +248,7 @@ restart of both instances.
 - An SDK never accepts an older ruleset, so after restoring the database to an earlier version,
   running SDKs keep their newer rules until the version passes them again.
 - The SDK is Python only, and has no hook yet for being told when a flag changes.
+- The SDK isn't on PyPI yet, so apps install it from a tag of this repository.
 - Each instance is one process. Throughput grows by running more instances behind nginx; the
   numbers above are for two.
 
