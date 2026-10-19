@@ -10,6 +10,7 @@ dependencies = [
     "asyncpg>=0.32",
     "fastapi>=0.148",
     "flagstaff",
+    "prometheus-client>=0.26",
     "pydantic-settings>=2.16",
     "redis>=8.1",
     "sqlalchemy[asyncio]>=2.1",

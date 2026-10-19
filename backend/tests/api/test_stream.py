@@ -9,6 +9,7 @@ from httpx import AsyncClient
 from flagstaff_server.api.app import create_app
 from flagstaff_server.api.container import Container
 from tests.api.conftest import Headers, sdk_key_for
+from tests.api.scrape import REQUESTS, TIMED, sample, scrape
 from tests.api.sse import RunningServer, events, next_event
 from tests.unit.application.fakes import FakeUnitOfWork, FixedClock
 
@@ -104,3 +105,20 @@ async def test_a_client_that_hangs_up_leaves_no_stream_behind(
     async with asyncio.timeout(2):
         while container.broadcaster.stream_count:
             await asyncio.sleep(0.01)
+
+
+async def test_a_stream_is_counted_once_it_closes_but_never_timed(
+    live: AsyncClient, as_prod: Headers
+) -> None:
+    async with live.stream("GET", "/sdk/stream", headers=as_prod) as response:
+        await next_event(events(response), kind="ruleset")
+
+    route = "/sdk/stream"
+    async with asyncio.timeout(2):
+        # Counted when the server notices the client has gone, a moment after it went.
+        while True:
+            exposition = await scrape(live)
+            if sample(exposition, REQUESTS, method="GET", route=route, status="200") == 1.0:
+                break
+            await asyncio.sleep(0.01)
+    assert sample(exposition, TIMED, method="GET", route=route) is None
