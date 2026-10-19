@@ -4,10 +4,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from flagstaff_server.domain.errors import EnvironmentNotFoundError, ProjectNotFoundError
+from flagstaff_server.domain.errors import (
+    EnvironmentNotFoundError,
+    FlagNotFoundError,
+    ProjectNotFoundError,
+)
 
 if TYPE_CHECKING:
     from flagstaff_server.application.ports import UnitOfWork
+    from flagstaff_server.domain.flags import Flag
     from flagstaff_server.domain.projects import Environment, Project
     from flagstaff_server.domain.values import Slug
 
@@ -24,3 +29,10 @@ async def require_environment(uow: UnitOfWork, project: Project, key: Slug) -> E
     if environment is None:
         raise EnvironmentNotFoundError(project.key, key)
     return environment
+
+
+async def require_flag(uow: UnitOfWork, project: Project, key: str) -> Flag:
+    flag = await uow.flags.get(project.id, key)
+    if flag is None:
+        raise FlagNotFoundError(project.key, key)
+    return flag

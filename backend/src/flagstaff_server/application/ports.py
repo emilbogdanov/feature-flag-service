@@ -4,6 +4,7 @@ from types import TracebackType
 from typing import Protocol, Self
 
 from flagstaff_server.domain.audit import AuditEntry
+from flagstaff_server.domain.flags import Flag
 from flagstaff_server.domain.ids import EnvironmentId, ProjectId
 from flagstaff_server.domain.projects import Environment, Project
 from flagstaff_server.domain.values import Slug
@@ -38,6 +39,21 @@ class EnvironmentRepository(Protocol):
     async def bump_ruleset_versions(self, environment_ids: Collection[EnvironmentId]) -> None: ...
 
 
+class FlagRepository(Protocol):
+    # Raises FlagKeyTakenError, now or at commit, if the project already has the key.
+    async def add(self, flag: Flag) -> None: ...
+
+    # Archived flags included: their keys stay taken.
+    async def get(self, project_id: ProjectId, key: str) -> Flag | None: ...
+
+    # Flags still in use, ordered by key.
+    async def list_active(self, project_id: ProjectId) -> list[Flag]: ...
+
+    # Saves only if the stored flag is still at flag.version, then moves flag.version on;
+    # raises StaleFlagError if another change got there first.
+    async def update(self, flag: Flag) -> None: ...
+
+
 class AuditLog(Protocol):
     # Written in the caller's transaction, so an entry exists exactly when its change does.
     async def add(self, entry: AuditEntry) -> None: ...
@@ -49,6 +65,9 @@ class UnitOfWork(Protocol):
 
     @property
     def environments(self) -> EnvironmentRepository: ...
+
+    @property
+    def flags(self) -> FlagRepository: ...
 
     @property
     def audit(self) -> AuditLog: ...

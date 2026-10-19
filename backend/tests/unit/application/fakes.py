@@ -5,9 +5,15 @@ from datetime import datetime, timedelta
 from types import TracebackType
 from typing import Self
 
+from flagstaff_server.application.errors import StaleFlagError
 from flagstaff_server.domain.audit import AuditEntry
-from flagstaff_server.domain.errors import EnvironmentKeyTakenError, ProjectKeyTakenError
-from flagstaff_server.domain.ids import EnvironmentId, ProjectId
+from flagstaff_server.domain.errors import (
+    EnvironmentKeyTakenError,
+    FlagKeyTakenError,
+    ProjectKeyTakenError,
+)
+from flagstaff_server.domain.flags import Flag
+from flagstaff_server.domain.ids import EnvironmentId, FlagId, ProjectId
 from flagstaff_server.domain.projects import Environment, Project
 from flagstaff_server.domain.values import Slug
 
@@ -16,6 +22,7 @@ from flagstaff_server.domain.values import Slug
 class ServerState:
     projects: dict[ProjectId, Project] = field(default_factory=dict)
     environments: dict[EnvironmentId, Environment] = field(default_factory=dict)
+    flags: dict[FlagId, Flag] = field(default_factory=dict)
     audit: list[AuditEntry] = field(default_factory=list)
 
 
@@ -77,6 +84,40 @@ class InMemoryEnvironmentRepository:
             )
 
 
+# Hands out copies, like a database would: a service that changes a flag and forgets to save it
+# must fail the tests instead of passing by accident.
+class InMemoryFlagRepository:
+    def __init__(self, state: ServerState) -> None:
+        self._state = state
+
+    async def add(self, flag: Flag) -> None:
+        if await self.get(flag.project_id, flag.key) is not None:
+            raise FlagKeyTakenError(self._state.projects[flag.project_id].key, flag.key)
+        self._state.flags[flag.id] = deepcopy(flag)
+
+    async def get(self, project_id: ProjectId, key: str) -> Flag | None:
+        found = next(
+            (f for f in self._state.flags.values() if f.project_id == project_id and f.key == key),
+            None,
+        )
+        return deepcopy(found)
+
+    async def list_active(self, project_id: ProjectId) -> list[Flag]:
+        active = [
+            flag
+            for flag in self._state.flags.values()
+            if flag.project_id == project_id and not flag.is_archived
+        ]
+        return deepcopy(sorted(active, key=lambda flag: flag.key))
+
+    async def update(self, flag: Flag) -> None:
+        stored = self._state.flags[flag.id]
+        if stored.version != flag.version:
+            raise StaleFlagError(flag.key, expected=flag.version, actual=stored.version)
+        flag.mark_saved()
+        self._state.flags[flag.id] = deepcopy(flag)
+
+
 class InMemoryAuditLog:
     def __init__(self, state: ServerState) -> None:
         self._state = state
@@ -95,6 +136,7 @@ class FakeUnitOfWork:
         # a concurrent transaction that commits while this block is still running.
         self.before_next_commit: Callable[[ServerState], object] | None = None
         self._working: ServerState | None = None
+        self._flag_versions_at_start: dict[FlagId, int] = {}
 
     @property
     def projects(self) -> InMemoryProjectRepository:
@@ -105,12 +147,19 @@ class FakeUnitOfWork:
         return InMemoryEnvironmentRepository(self._state())
 
     @property
+    def flags(self) -> InMemoryFlagRepository:
+        return InMemoryFlagRepository(self._state())
+
+    @property
     def audit(self) -> InMemoryAuditLog:
         return InMemoryAuditLog(self._state())
 
     async def __aenter__(self) -> Self:
         assert self._working is None, "unit of work entered twice"
         self._working = deepcopy(self.committed)
+        self._flag_versions_at_start = {
+            flag_id: flag.version for flag_id, flag in self.committed.flags.items()
+        }
         return self
 
     async def __aexit__(
@@ -126,6 +175,15 @@ class FakeUnitOfWork:
         if self.before_next_commit is not None:
             self.before_next_commit(self.committed)
             self.before_next_commit = None
+        # Postgres refuses the conditional UPDATE when another transaction saved the flag first;
+        # here the same conflict is caught at commit.
+        for flag_id, flag in working.flags.items():
+            started_at = self._flag_versions_at_start.get(flag_id)
+            if started_at is None or flag.version == started_at:
+                continue
+            committed_at = self.committed.flags[flag_id].version
+            if committed_at != started_at:
+                raise StaleFlagError(flag.key, expected=started_at, actual=committed_at)
         self.committed = deepcopy(working)
         self.commits += 1
 
