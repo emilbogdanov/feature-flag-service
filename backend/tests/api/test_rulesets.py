@@ -1,10 +1,11 @@
-from typing import Any
+from typing import Any, NoReturn
 
 import pytest
 from flagstaff.engine.context import EvaluationContext
 from flagstaff.engine.wire import ruleset_from_document
 from httpx import AsyncClient
 
+from flagstaff_server.application.rulesets import RulesetService
 from tests.api.conftest import Headers, sdk_key_for
 from tests.unit.application.fakes import FakeUnitOfWork, FixedClock
 
@@ -81,6 +82,22 @@ class TestRuleset:
         assert again.status_code == 304
         assert again.content == b""
         assert again.headers["ETag"] == first.headers["ETag"]
+
+    async def test_the_held_version_is_answered_without_building_the_rules(
+        self, http: AsyncClient, as_prod: Headers, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        first = await http.get("/sdk/ruleset", headers=as_prod)
+
+        async def build_refused(*_: object) -> NoReturn:
+            raise AssertionError("a 304 should not need the rules themselves")
+
+        monkeypatch.setattr(RulesetService, "ruleset_for", build_refused)
+        again = await http.get(
+            "/sdk/ruleset", headers={**as_prod, "If-None-Match": first.headers["ETag"]}
+        )
+
+        assert again.status_code == 304
+        assert again.headers["Cache-Control"] == "private, no-cache"
 
     async def test_a_change_moves_the_etag_on(
         self, http: AsyncClient, as_admin: Headers, as_prod: Headers

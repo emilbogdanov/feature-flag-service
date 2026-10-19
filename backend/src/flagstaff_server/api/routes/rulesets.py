@@ -32,8 +32,14 @@ IfNoneMatch = Annotated[
 async def sdk_ruleset(
     environment: SdkEnvironment, container: ContainerDep, if_none_match: IfNoneMatch = None
 ) -> Response:
-    ruleset = await container.rulesets().ruleset_for(environment)
-    return _ruleset_response(ruleset, if_none_match)
+    rulesets = container.rulesets()
+    # Most polls come from SDKs that already hold the current rules. The version alone tells
+    # them so, without loading and compiling every flag in the project.
+    if if_none_match is not None:
+        version = (await rulesets.current_versions([environment])).get(environment)
+        if version is not None and _is_held(version, if_none_match):
+            return _not_modified(version)
+    return _ruleset_response(await rulesets.ruleset_for(environment), if_none_match)
 
 
 @router.post("/sdk/evaluate")
@@ -73,16 +79,26 @@ async def environment_evaluate(
 
 
 def _ruleset_response(ruleset: Ruleset, if_none_match: str | None) -> Response:
-    tag = etag(ruleset.version)
-    # The answer depends on the key as much as the URL, and must be revalidated every time:
-    # a cached ruleset is exactly the stale rules this endpoint exists to replace.
-    headers = {"ETag": tag, "Cache-Control": "private, no-cache", "Vary": "Authorization"}
-    if if_none_match is not None and tag in {part.strip() for part in if_none_match.split(",")}:
-        return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
+    if if_none_match is not None and _is_held(ruleset.version, if_none_match):
+        return _not_modified(ruleset.version)
     # Serialised straight from the engine's document: running a large ruleset through response
     # validation on every SDK start would cost more than building it.
     body = json.dumps(ruleset_to_document(ruleset), separators=(",", ":"))
-    return Response(body, media_type="application/json", headers=headers)
+    return Response(body, media_type="application/json", headers=_headers(ruleset.version))
+
+
+def _is_held(version: int, if_none_match: str) -> bool:
+    return etag(version) in {part.strip() for part in if_none_match.split(",")}
+
+
+def _not_modified(version: int) -> Response:
+    return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=_headers(version))
+
+
+# The answer depends on the key as much as the URL, and must be revalidated every time: a
+# cached ruleset is exactly the stale rules this endpoint exists to replace.
+def _headers(version: int) -> dict[str, str]:
+    return {"ETag": etag(version), "Cache-Control": "private, no-cache", "Vary": "Authorization"}
 
 
 def _evaluate(ruleset: Ruleset, body: EvaluateRequest) -> EvaluationsResponse:
