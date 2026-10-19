@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -8,7 +9,7 @@ from flagstaff.engine.serving import FixedVariant
 from flagstaff.engine.variants import FlagKind, Variant
 
 from flagstaff_server.application.errors import StaleFlagError
-from flagstaff_server.application.flags import FlagService
+from flagstaff_server.application.flags import UNVERSIONED_EDIT_ATTEMPTS, FlagService
 from flagstaff_server.application.projects import ProjectService
 from flagstaff_server.domain.audit import Actor, AuditAction
 from flagstaff_server.domain.errors import (
@@ -226,19 +227,51 @@ class TestOptimisticLocking:
 
         assert flag.version == 2
 
-    async def test_a_concurrent_edit_that_commits_first_wins(
+    async def test_a_versioned_edit_loses_to_a_concurrent_save(
         self, service: FlagService, uow: FakeUnitOfWork
     ) -> None:
         flag = await create_new_checkout(service)
+        uow.before_next_commit = someone_else_saves(flag)
 
-        def someone_else_saves(state: ServerState) -> None:
-            state.flags[flag.id].mark_saved()
+        with pytest.raises(StaleFlagError):
+            await service.enable(ACTOR, STOREFRONT, "new-checkout", PROD, expected_version=1)
 
-        uow.before_next_commit = someone_else_saves
+        assert uow.committed.audit[-1].action is AuditAction.FLAG_CREATED
+
+    async def test_an_unversioned_edit_is_redone_on_top_of_a_concurrent_save(
+        self, service: FlagService, uow: FakeUnitOfWork
+    ) -> None:
+        flag = await create_new_checkout(service)
+        uow.before_next_commit = someone_else_saves(flag)
+
+        enabled = await service.enable(ACTOR, STOREFRONT, "new-checkout", PROD)
+
+        assert enabled.version == 3
+        assert evaluate(enabled, uow, PROD, "user-7") is True
+        assert [entry.action for entry in uow.committed.audit].count(AuditAction.FLAG_ENABLED) == 1
+
+    async def test_an_unversioned_edit_gives_up_on_a_flag_that_keeps_changing(
+        self, service: FlagService, uow: FakeUnitOfWork
+    ) -> None:
+        flag = await create_new_checkout(service)
+        save = someone_else_saves(flag)
+
+        def save_again_and_again(state: ServerState) -> None:
+            save(state)
+            uow.before_next_commit = save_again_and_again
+
+        uow.before_next_commit = save_again_and_again
 
         with pytest.raises(StaleFlagError):
             await service.enable(ACTOR, STOREFRONT, "new-checkout", PROD)
-        assert uow.committed.audit[-1].action is AuditAction.FLAG_CREATED
+        assert uow.committed.flags[flag.id].version == 1 + UNVERSIONED_EDIT_ATTEMPTS
+
+
+def someone_else_saves(flag: Flag) -> Callable[[ServerState], None]:
+    def save(state: ServerState) -> None:
+        state.flags[flag.id].mark_saved()
+
+    return save
 
 
 class TestVariants:

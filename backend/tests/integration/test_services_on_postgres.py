@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime
 
 import pytest
@@ -122,3 +123,35 @@ async def test_an_issued_key_authenticates_against_postgres(
 
     assert authenticated.id == issued.key.id
     assert [key.revoked_at for key in await keys.list_keys()] == [NOW]
+
+
+async def test_two_kill_switches_thrown_at_once_both_take_effect(
+    uow: SqlUnitOfWork, clock: FixedClock, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    await ProjectService(uow, clock).create_project(CLI, key=STOREFRONT, name=Name("Storefront"))
+    await FlagService(uow, clock).create_flag(
+        CLI,
+        STOREFRONT,
+        key="new-checkout",
+        name=Name("New checkout"),
+        description=Description(),
+        kind=FlagKind.BOOLEAN,
+        variants=(Variant("on", value=True), Variant("off", value=False)),
+        off_variant="off",
+        on_variant="on",
+    )
+
+    # Each switch gets its own unit of work, as two API requests would.
+    await asyncio.gather(
+        *(
+            FlagService(SqlUnitOfWork(session_factory), clock).enable(
+                CLI, STOREFRONT, "new-checkout", Slug(environment)
+            )
+            for environment in ["dev", "staging", "prod"]
+        )
+    )
+
+    flag = await FlagService(uow, clock).get_flag(STOREFRONT, "new-checkout")
+    environments = await ProjectService(uow, clock).list_environments(STOREFRONT)
+    assert flag.version == 4
+    assert all(flag.targeting_in(environment.id).enabled for environment in environments)

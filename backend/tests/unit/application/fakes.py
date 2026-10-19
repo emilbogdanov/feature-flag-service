@@ -207,9 +207,9 @@ class FakeUnitOfWork:
 
     async def commit(self) -> None:
         working = self._state()
-        if self.before_next_commit is not None:
-            self.before_next_commit(self.committed)
-            self.before_next_commit = None
+        hook, self.before_next_commit = self.before_next_commit, None
+        if hook is not None:
+            hook(self.committed)
         # Postgres refuses the conditional UPDATE when another transaction saved the flag first;
         # here the same conflict is caught at commit.
         for flag_id, flag in working.flags.items():

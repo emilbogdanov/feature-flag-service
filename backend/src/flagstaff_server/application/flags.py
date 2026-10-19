@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 from uuid import uuid4
 
 from flagstaff.engine.wire import variants_to_document
@@ -20,7 +19,7 @@ from flagstaff_server.domain.flags import Flag
 from flagstaff_server.domain.ids import FlagId
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Iterable, Mapping
+    from collections.abc import Awaitable, Callable, Iterable, Mapping
 
     from flagstaff.engine.variants import FlagKind, JSONValue, Variant
 
@@ -30,6 +29,10 @@ if TYPE_CHECKING:
     from flagstaff_server.domain.ids import EnvironmentId
     from flagstaff_server.domain.projects import Environment, Project
     from flagstaff_server.domain.values import Description, Name, Slug
+
+
+# Enough to ride out a burst of concurrent saves to one flag without spinning on a hot one.
+UNVERSIONED_EDIT_ATTEMPTS: Final = 3
 
 
 # Edits take the version the caller last read. None skips the check, which is what a kill
@@ -112,8 +115,8 @@ class FlagService:
         description: Description,
         expected_version: int | None = None,
     ) -> Flag:
-        async with self._editing(project_key, key, expected_version) as edit:
-            flag, now = edit.flag, self._clock.now()
+        async def change(edit: _Edit) -> None:
+            flag = edit.flag
             changes = {
                 field_name: _before_and_after(str(before), str(after))
                 for field_name, before, after in [
@@ -122,12 +125,13 @@ class FlagService:
                 ]
                 if before != after
             }
-            flag.change_details(name=name, description=description, at=now)
+            flag.change_details(name=name, description=description, at=self._clock.now())
             if changes:
                 # Names and descriptions never reach an SDK, so no ruleset moves on.
                 entry = self._entry(edit, AuditAction.FLAG_DETAILS_CHANGED, actor, changes)
                 edit.record(entry, affects=())
-        return edit.flag
+
+        return await self._edit(project_key, key, expected_version, change)
 
     async def change_variants(
         self,
@@ -138,7 +142,7 @@ class FlagService:
         variants: tuple[Variant, ...],
         expected_version: int | None = None,
     ) -> Flag:
-        async with self._editing(project_key, key, expected_version) as edit:
+        async def change(edit: _Edit) -> None:
             before = variants_to_document(edit.flag.variants)
             edit.flag.change_variants(variants, at=self._clock.now())
             changes = {"variants": _before_and_after(before, variants_to_document(variants))}
@@ -146,7 +150,8 @@ class FlagService:
                 self._entry(edit, AuditAction.FLAG_VARIANTS_CHANGED, actor, changes),
                 affects=await self._environment_ids(edit.uow, edit.project),
             )
-        return edit.flag
+
+        return await self._edit(project_key, key, expected_version, change)
 
     async def change_targeting(
         self,
@@ -158,7 +163,7 @@ class FlagService:
         targeting: Targeting,
         expected_version: int | None = None,
     ) -> Flag:
-        async with self._editing(project_key, key, expected_version) as edit:
+        async def change(edit: _Edit) -> None:
             environment = await require_environment(edit.uow, edit.project, environment_key)
             before = edit.flag.targeting_in(environment.id).to_document()
             edit.flag.change_targeting(environment.id, targeting, at=self._clock.now())
@@ -167,7 +172,8 @@ class FlagService:
                 edit, AuditAction.FLAG_TARGETING_CHANGED, actor, changes, environment=environment
             )
             edit.record(entry, affects=[environment.id])
-        return edit.flag
+
+        return await self._edit(project_key, key, expected_version, change)
 
     async def enable(
         self,
@@ -198,13 +204,14 @@ class FlagService:
     async def archive(
         self, actor: Actor, project_key: Slug, key: str, *, expected_version: int | None = None
     ) -> Flag:
-        async with self._editing(project_key, key, expected_version) as edit:
+        async def change(edit: _Edit) -> None:
             edit.flag.archive(at=self._clock.now())
             edit.record(
                 self._entry(edit, AuditAction.FLAG_ARCHIVED, actor, {}),
                 affects=await self._environment_ids(edit.uow, edit.project),
             )
-        return edit.flag
+
+        return await self._edit(project_key, key, expected_version, change)
 
     async def _switch(
         self,
@@ -216,7 +223,7 @@ class FlagService:
         on: bool,
         expected_version: int | None,
     ) -> Flag:
-        async with self._editing(project_key, key, expected_version) as edit:
+        async def change(edit: _Edit) -> None:
             environment = await require_environment(edit.uow, edit.project, environment_key)
             now = self._clock.now()
             switched = (
@@ -228,29 +235,44 @@ class FlagService:
                 action = AuditAction.FLAG_ENABLED if on else AuditAction.FLAG_DISABLED
                 entry = self._entry(edit, action, actor, {}, environment=environment)
                 edit.record(entry, affects=[environment.id])
-        return edit.flag
 
-    # Loads the flag for an edit, then saves it, moves the affected rulesets on and writes the
-    # audit entries in one transaction, but only if the edit recorded a change.
-    @asynccontextmanager
-    async def _editing(
-        self, project_key: Slug, key: str, expected_version: int | None
-    ) -> AsyncIterator[_Edit]:
+        return await self._edit(project_key, key, expected_version, change)
+
+    # An edit with no expected version, such as a kill switch, that loses a race to another
+    # save is run again on the flag as that save left it. With an expected version the caller
+    # decided against whatever they last saw, so the conflict is theirs to resolve.
+    async def _edit(
+        self, project_key: Slug, key: str, expected_version: int | None, change: _Change
+    ) -> Flag:
+        attempt = 1
+        while True:
+            try:
+                return await self._edit_once(project_key, key, expected_version, change)
+            except StaleFlagError:
+                if expected_version is not None or attempt == UNVERSIONED_EDIT_ATTEMPTS:
+                    raise
+                attempt += 1
+
+    # Loads the flag, applies the change, then saves it, moves the affected rulesets on and
+    # writes the audit entries in one transaction, but only if the change recorded anything.
+    async def _edit_once(
+        self, project_key: Slug, key: str, expected_version: int | None, change: _Change
+    ) -> Flag:
         async with self._uow as uow:
             project = await require_project(uow, project_key)
             flag = await require_flag(uow, project, key)
             if expected_version is not None and flag.version != expected_version:
                 raise StaleFlagError(key, expected=expected_version, actual=flag.version)
             edit = _Edit(uow, project, flag)
-            yield edit
-            if not edit.entries:
-                return
-            await uow.flags.update(flag)
-            if edit.affected:
-                await uow.environments.bump_ruleset_versions(edit.affected)
-            for entry in edit.entries:
-                await uow.audit.add(entry)
-            await uow.commit()
+            await change(edit)
+            if edit.entries:
+                await uow.flags.update(flag)
+                if edit.affected:
+                    await uow.environments.bump_ruleset_versions(edit.affected)
+                for entry in edit.entries:
+                    await uow.audit.add(entry)
+                await uow.commit()
+        return flag
 
     def _entry(
         self,
@@ -288,6 +310,9 @@ class _Edit:
     def record(self, entry: AuditEntry, *, affects: Iterable[EnvironmentId]) -> None:
         self.entries.append(entry)
         self.affected.update(affects)
+
+
+type _Change = Callable[[_Edit], Awaitable[None]]
 
 
 def _before_and_after(before: JSONValue, after: JSONValue) -> JSONValue:
