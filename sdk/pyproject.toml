@@ -1,0 +1,63 @@
+[project]
+name = "flagstaff"
+version = "0.1.0"
+description = "Python SDK for Flagstaff feature flags: rules evaluated in-process, kept current over server-sent events."
+requires-python = ">=3.12"
+license = "MIT"
+authors = [{ name = "Emil Bogdanov" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+]
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/emilbogdanov/feature-flag-service"
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.170",
+    "mypy>=2.4",
+    "pytest>=9.1",
+    "ruff>=0.17.1",
+]
+
+[build-system]
+requires = ["uv_build>=0.13,<0.14"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W", "F", "I", "N", "UP", "B", "A", "C4", "SIM", "RET", "PTH",
+    "PL", "RUF", "S", "T20", "DTZ", "PT", "TRY", "ERA", "FBT", "ARG", "PIE", "TC",
+]
+ignore = [
+    "TRY003",   # exception messages are composed where the invalid value is known
+]
+
+[tool.ruff.lint.per-file-ignores]
+# asserts, literal expectations, seeded randomness for test data
+"tests/**" = ["S101", "PLR2004", "S311"]
+
+[tool.mypy]
+strict = true
+# The oldest supported Python, so nothing newer slips into the published package.
+python_version = "3.12"
+warn_unreachable = true
+enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool", "possibly-undefined"]
+files = ["src", "tests"]
+mypy_path = "src"
+
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+xfail_strict = true
+filterwarnings = ["error"]
