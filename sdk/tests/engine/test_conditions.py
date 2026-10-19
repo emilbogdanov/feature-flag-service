@@ -114,6 +114,13 @@ class TestComparison:
             condition("seats", Operator.GREATER_THAN, *values)
 
 
+def test_compares_integers_too_large_for_a_float() -> None:
+    above_a_googol = condition("account_balance", Operator.GREATER_THAN, 10**100)
+
+    assert above_a_googol.matches(user(account_balance=10**400))
+    assert not above_a_googol.matches(user(account_balance=10**99))
+
+
 def test_a_missing_attribute_fails_even_a_negated_condition() -> None:
     not_enterprise = condition("plan", Operator.IN, "enterprise", negate=True)
 

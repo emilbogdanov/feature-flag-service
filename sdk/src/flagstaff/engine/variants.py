@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Final
 
 from flagstaff.engine.keys import require_key
+from flagstaff.engine.numeric import is_number
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -32,15 +32,11 @@ class Variant:
         require_key("variant", self.key)
 
 
-def _is_number(value: object) -> bool:
-    return isinstance(value, int | float) and not isinstance(value, bool) and math.isfinite(value)
-
-
 def _is_json(value: object) -> bool:
     if value is None or isinstance(value, bool | str):
         return True
     if isinstance(value, int | float):
-        return _is_number(value)
+        return is_number(value)
     if isinstance(value, list):
         return all(_is_json(item) for item in value)
     if isinstance(value, dict):
@@ -51,6 +47,6 @@ def _is_json(value: object) -> bool:
 _ACCEPTS: Final[Mapping[FlagKind, Callable[[object], bool]]] = {
     FlagKind.BOOLEAN: lambda value: isinstance(value, bool),
     FlagKind.STRING: lambda value: isinstance(value, str),
-    FlagKind.NUMBER: _is_number,
+    FlagKind.NUMBER: is_number,
     FlagKind.JSON: _is_json,
 }

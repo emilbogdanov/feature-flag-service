@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
 from enum import StrEnum
 from operator import ge, gt, le, lt
 from typing import TYPE_CHECKING, Final, Protocol
 
 from flagstaff.engine.errors import InvalidFlagError
+from flagstaff.engine.numeric import is_number
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -129,7 +129,7 @@ def _comparison(compare: Callable[[float, float], bool]) -> _Compiler:
 def _single_number(operator: Operator, values: tuple[AttributeValue, ...]) -> float:
     if len(values) == 1:
         (bound,) = values
-        if isinstance(bound, int | float) and not isinstance(bound, bool) and math.isfinite(bound):
+        if isinstance(bound, int | float) and is_number(bound):
             return bound
     raise InvalidFlagError(f"operator {operator} takes exactly one finite number, got {values!r}")
 

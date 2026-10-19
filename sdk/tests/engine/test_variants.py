@@ -11,10 +11,10 @@ from flagstaff.engine.variants import FlagKind, JSONValue, Variant
     [
         (FlagKind.BOOLEAN, [True, False], [1, "true", None]),
         (FlagKind.STRING, ["", "blue"], [1, True, None]),
-        (FlagKind.NUMBER, [0, 25, 0.5, -3], [True, "25", math.nan, math.inf, None]),
+        (FlagKind.NUMBER, [0, 25, 0.5, -3, 10**400], [True, "25", math.nan, math.inf, None]),
         (
             FlagKind.JSON,
-            [None, True, 3, "x", [1, "two"], {"limits": {"daily": 50, "tiers": ["pro"]}}],
+            [None, True, 3, 10**400, "x", [1, "two"], {"limits": {"daily": 50, "tiers": ["pro"]}}],
             [{"ratio": math.nan}, {1: "numeric key"}, [object()], ("tuple",)],
         ),
     ],
