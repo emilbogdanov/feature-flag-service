@@ -12,6 +12,7 @@ dependencies = [
     "flagstaff",
     "pydantic-settings>=2.16",
     "sqlalchemy[asyncio]>=2.1",
+    "uvicorn>=0.54",
 ]
 
 [dependency-groups]
