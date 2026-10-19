@@ -23,7 +23,7 @@ def test_each_kind_accepts_only_its_own_values(
     kind: FlagKind, accepted: list[JSONValue], refused: list[object]
 ) -> None:
     assert all(kind.accepts(value) for value in accepted)
-    assert not any(kind.accepts(value) for value in refused)  # type: ignore[arg-type]
+    assert not any(kind.accepts(value) for value in refused)
 
 
 @pytest.mark.parametrize("key", ["", "has space", "-leading-dash", "a:b", "x" * 129])

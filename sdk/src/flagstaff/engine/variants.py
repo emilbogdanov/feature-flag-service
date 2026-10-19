@@ -19,7 +19,7 @@ class FlagKind(StrEnum):
     NUMBER = "number"
     JSON = "json"
 
-    def accepts(self, value: JSONValue) -> bool:
+    def accepts(self, value: object) -> bool:
         return _ACCEPTS[self](value)
 
 
