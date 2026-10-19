@@ -4,6 +4,8 @@ import threading
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from flagstaff.engine.ruleset import Ruleset
 
 
@@ -15,6 +17,7 @@ class RulesetStore:
         self._ruleset: Ruleset | None = None
         self._lock = threading.Lock()
         self._ready = threading.Event()
+        self._listeners: list[Callable[[Ruleset], None]] = []
 
     @property
     def ruleset(self) -> Ruleset | None:
@@ -26,8 +29,20 @@ class RulesetStore:
             if current is not None and ruleset.version <= current.version:
                 return False
             self._ruleset = ruleset
+            listeners = list(self._listeners)
         self._ready.set()
+        for listener in listeners:
+            listener(ruleset)
         return True
+
+    # Called, on the writer's thread, with every ruleset that replaces the one before.
+    def add_listener(self, listener: Callable[[Ruleset], None]) -> None:
+        with self._lock:
+            self._listeners.append(listener)
+
+    def remove_listener(self, listener: Callable[[Ruleset], None]) -> None:
+        with self._lock:
+            self._listeners.remove(listener)
 
     def wait_until_ready(self, timeout: float | None) -> bool:
         return self._ready.wait(timeout)

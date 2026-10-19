@@ -372,14 +372,19 @@ wheels = [
 name = "flagstaff"
 version = "0.1.0"
 source = { editable = "../sdk" }
+dependencies = [
+    { name = "httpx" },
+]
 
 [package.metadata]
+requires-dist = [{ name = "httpx", specifier = ">=0.28" }]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "hypothesis", specifier = ">=6.170" },
     { name = "mypy", specifier = ">=2.4" },
     { name = "pytest", specifier = ">=9.1" },
+    { name = "pytest-asyncio", specifier = ">=1.4" },
     { name = "ruff", specifier = ">=0.17.1" },
 ]
 
