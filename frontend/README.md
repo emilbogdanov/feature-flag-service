@@ -17,6 +17,13 @@ The dashboard opens on http://localhost:5173/dashboard/. It lives under `/dashbo
 API owns the paths at the root. Vite forwards the API's paths to `FLAGSTAFF_API_URL` (default
 `http://localhost:8080`), so the browser sees one origin, as it does behind nginx.
 
+## Signing in
+
+The dashboard asks for an admin key, the same kind of key the API takes, and checks it by loading
+the project list. The first one comes from `flagstaff-server create-admin-key`. The key is kept in
+the tab's session storage, so a reload keeps you signed in and closing the tab signs you out. When
+the API stops accepting the key, because someone revoked it, the next request signs you out.
+
 ## API types
 
 `src/api/schema.ts` is generated, not written by hand. After a change to the API:
