@@ -14,6 +14,8 @@ export default defineConfig({
     proxy: Object.fromEntries(apiPaths.map((path) => [path, apiUrl])),
   },
   test: {
+    // The end-to-end tests in e2e/ run under Playwright, against the compose stack.
+    include: ["src/**/*.test.{ts,tsx}"],
     environment: "jsdom",
     setupFiles: ["src/test/setup.ts"],
   },
