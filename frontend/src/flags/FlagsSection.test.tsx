@@ -33,6 +33,10 @@ describe("the flag list", () => {
     renderDashboard("/projects/storefront", { adminKey: ADMIN_KEY });
 
     expect(await screen.findByText("No flags yet.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "New flag" })).toHaveAttribute(
+      "href",
+      "/projects/storefront/flags/new",
+    );
   });
 });
 

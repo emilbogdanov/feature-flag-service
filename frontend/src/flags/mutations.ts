@@ -2,7 +2,7 @@ import { type QueryClient, useMutation, useQueryClient } from "@tanstack/react-q
 
 import { type ApiClient, unwrap } from "../api/client";
 import { environmentsQuery, flagQuery, flagsQuery } from "../api/queries";
-import type { FlagResponse } from "../api/schema";
+import type { CreateFlag, FlagResponse } from "../api/schema";
 import { useApiClient } from "../session/session-context";
 
 // Edits name the version they were made against, so one made on a stale page is refused with 412
@@ -44,6 +44,24 @@ export function useSwitchFlag(projectKey: string) {
     },
     onError: () => {
       refreshFlags(queryClient, client, projectKey);
+    },
+  });
+}
+
+export function useCreateFlag(projectKey: string) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateFlag) =>
+      unwrap(
+        client.POST("/projects/{project_key}/flags", {
+          params: { path: { project_key: projectKey } },
+          body,
+        }),
+      ),
+    onSuccess: (flag) => {
+      queryClient.setQueryData(flagQuery(client, projectKey, flag.key).queryKey, flag);
+      void queryClient.invalidateQueries({ queryKey: flagsQuery(client, projectKey).queryKey });
     },
   });
 }

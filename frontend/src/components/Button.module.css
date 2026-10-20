@@ -27,3 +27,7 @@
 .quiet:hover {
   border-color: var(--color-ink-muted);
 }
+
+.link {
+  text-decoration: none;
+}

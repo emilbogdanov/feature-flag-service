@@ -4,6 +4,7 @@ import { Link } from "react-router";
 
 import { flagsQuery } from "../api/queries";
 import type { EnvironmentResponse } from "../api/schema";
+import { ButtonLink } from "../components/ButtonLink";
 import { ErrorNotice } from "../components/ErrorNotice";
 import page from "../pages/page.module.css";
 import { useApiClient } from "../session/session-context";
@@ -26,6 +27,9 @@ export function FlagsSection({ projectKey, environments }: FlagsSectionProps) {
     <section className={page.section} aria-labelledby="flags">
       <div className={styles.header}>
         <h2 id="flags">Flags</h2>
+        <ButtonLink to={`/projects/${encodeURIComponent(projectKey)}/flags/new`}>
+          New flag
+        </ButtonLink>
       </div>
       {failure !== null && <ErrorNotice error={new Error(failure)} />}
       {flags.isPending ? (
