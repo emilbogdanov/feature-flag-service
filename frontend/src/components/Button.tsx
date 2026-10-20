@@ -4,7 +4,7 @@ import styles from "./Button.module.css";
 import { cx } from "./cx";
 
 interface ButtonProps extends ComponentProps<"button"> {
-  variant?: "primary" | "quiet";
+  variant?: "primary" | "quiet" | "danger";
 }
 
 export function Button({ variant = "quiet", className, type = "button", ...props }: ButtonProps) {

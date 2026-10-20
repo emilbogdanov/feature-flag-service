@@ -6,6 +6,8 @@ import { hasCode } from "../api/errors";
 import { environmentsQuery, flagQuery, projectQuery } from "../api/queries";
 import type { EnvironmentResponse, FlagResponse } from "../api/schema";
 import { ErrorNotice } from "../components/ErrorNotice";
+import { ArchiveFlag } from "../flags/ArchiveFlag";
+import { FlagDetails } from "../flags/FlagDetails";
 import { FlagSwitch } from "../flags/FlagSwitch";
 import { describeServe } from "../flags/serve";
 import { KIND_LABELS, formatValue } from "../flags/variants";
@@ -88,13 +90,7 @@ function Flag({ projectKey, flag, environments, environmentsError }: FlagProps) 
             longer be changed.
           </p>
         )}
-        <div className={styles.details}>
-          {flag.description === "" ? (
-            <p className={styles.muted}>No description.</p>
-          ) : (
-            <p>{flag.description}</p>
-          )}
-        </div>
+        <FlagDetails projectKey={projectKey} flag={flag} editable={!archived} />
 
         <section className={styles.section} aria-labelledby="targeting">
           <h2 id="targeting">Environments</h2>
@@ -172,6 +168,8 @@ function Flag({ projectKey, flag, environments, environmentsError }: FlagProps) 
             </tbody>
           </table>
         </section>
+
+        {!archived && <ArchiveFlag projectKey={projectKey} flag={flag} />}
       </div>
     </>
   );

@@ -4,7 +4,7 @@ import styles from "./Button.module.css";
 import { cx } from "./cx";
 
 interface ButtonLinkProps extends LinkProps {
-  variant?: "primary" | "quiet";
+  variant?: "primary" | "quiet" | "danger";
 }
 
 // A link that looks like a button, for actions that are a page of their own.

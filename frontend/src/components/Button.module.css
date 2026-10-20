@@ -14,7 +14,13 @@
   color: var(--color-on-tape);
 }
 
-.primary:disabled {
+.danger {
+  background: var(--color-danger);
+  color: var(--color-on-danger);
+}
+
+.primary:disabled,
+.danger:disabled {
   opacity: 0.7;
 }
 
