@@ -99,4 +99,5 @@ leaves its update thread behind in the master, and the workers would never get n
 
 ## License
 
-MIT
+Released under the [MIT License](https://github.com/emilbogdanov/feature-flag-service/blob/main/sdk/LICENSE).
+Copyright © 2026 Emil Bogdanov.

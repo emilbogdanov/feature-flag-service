@@ -310,4 +310,4 @@ checks what it did through the API; the `stack` job runs that too. The
 
 ## License
 
-MIT
+Flagstaff is released under the [MIT License](LICENSE). Copyright © 2026 Emil Bogdanov.
