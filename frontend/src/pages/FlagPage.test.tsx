@@ -28,6 +28,15 @@ describe("a flag's page", () => {
     expect(variants.getByRole("row", { name: /^on/ })).toHaveTextContent("true");
   });
 
+  it("links each environment to its targeting", async () => {
+    serveStorefront();
+    renderDashboard(FLAG_PATH, { adminKey: ADMIN_KEY });
+
+    expect(
+      await screen.findByRole("link", { name: "Edit targeting in Production" }),
+    ).toHaveAttribute("href", `${FLAG_PATH}/environments/prod`);
+  });
+
   it("says so when there is no such flag", async () => {
     serveStorefront();
     server.use(

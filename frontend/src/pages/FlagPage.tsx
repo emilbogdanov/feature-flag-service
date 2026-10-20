@@ -95,6 +95,9 @@ function Flag({ projectKey, flag, environments, environmentsError }: FlagProps) 
 
         <section className={styles.section} aria-labelledby="targeting">
           <h2 id="targeting">Environments</h2>
+          {!archived && (
+            <p className={styles.muted}>Open an environment to change its rules and rollouts.</p>
+          )}
           {failure !== null && <ErrorNotice error={new Error(failure)} />}
           {environments === undefined ? (
             environmentsError ? (
@@ -120,7 +123,18 @@ function Flag({ projectKey, flag, environments, environmentsError }: FlagProps) 
                   const targeting = flag.environments[environment.key];
                   return (
                     <tr key={environment.key}>
-                      <th scope="row">{environment.name}</th>
+                      <th scope="row">
+                        {archived ? (
+                          environment.name
+                        ) : (
+                          <Link
+                            to={`/projects/${encodeURIComponent(projectKey)}/flags/${encodeURIComponent(flag.key)}/environments/${encodeURIComponent(environment.key)}`}
+                            aria-label={`Edit targeting in ${environment.name}`}
+                          >
+                            {environment.name}
+                          </Link>
+                        )}
+                      </th>
                       <td>
                         {archived ? (
                           "Archived"

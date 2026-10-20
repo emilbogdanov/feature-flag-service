@@ -2,7 +2,7 @@ import { type QueryClient, useMutation, useQueryClient } from "@tanstack/react-q
 
 import { type ApiClient, unwrap } from "../api/client";
 import { environmentsQuery, flagQuery, flagsQuery } from "../api/queries";
-import type { CreateFlag, FlagResponse, VariantSchema } from "../api/schema";
+import type { CreateFlag, FlagResponse, TargetingSchema, VariantSchema } from "../api/schema";
 import { useApiClient } from "../session/session-context";
 
 // Edits name the version they were made against, so one made on a stale page is refused with 412
@@ -113,6 +113,40 @@ export function useChangeVariants(projectKey: string) {
           },
           body: { variants },
         }),
+      ),
+    onSuccess: (flag) => {
+      rememberFlag(queryClient, client, projectKey, flag);
+    },
+    onError: () => {
+      refreshFlags(queryClient, client, projectKey);
+    },
+  });
+}
+
+interface TargetingRequest {
+  flagKey: string;
+  // The version the edit started from, which may be older than the flag now on screen.
+  version: number;
+  environmentKey: string;
+  targeting: TargetingSchema;
+}
+
+export function useChangeTargeting(projectKey: string) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ flagKey, version, environmentKey, targeting }: TargetingRequest) =>
+      unwrap(
+        client.PUT(
+          "/projects/{project_key}/flags/{flag_key}/environments/{environment_key}/targeting",
+          {
+            params: {
+              path: { project_key: projectKey, flag_key: flagKey, environment_key: environmentKey },
+              header: ifMatch(version),
+            },
+            body: targeting,
+          },
+        ),
       ),
     onSuccess: (flag) => {
       rememberFlag(queryClient, client, projectKey, flag);

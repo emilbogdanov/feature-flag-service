@@ -1,4 +1,9 @@
-import type { EnvironmentResponse, FlagResponse, ProjectResponse } from "../api/schema";
+import type {
+  EnvironmentResponse,
+  FlagResponse,
+  ProjectResponse,
+  TargetingSchema,
+} from "../api/schema";
 
 export const ADMIN_KEY = "fs_admin_test";
 
@@ -27,6 +32,32 @@ const offEverywhere = {
   fallthrough: { variant: "on" },
 };
 
+export const developmentTargeting: TargetingSchema = {
+  enabled: true,
+  off_variant: "off",
+  rules: [
+    {
+      id: "staff",
+      conditions: [
+        {
+          type: "attribute",
+          attribute: "email",
+          operator: "ends_with",
+          values: ["@shop.test"],
+          negate: false,
+        },
+      ],
+      serve: { variant: "on" },
+    },
+  ],
+  fallthrough: {
+    rollout: [
+      { variant: "on", weight: 25_000 },
+      { variant: "off", weight: 75_000 },
+    ],
+  },
+};
+
 export const newCheckout: FlagResponse = {
   key: "new-checkout",
   name: "New checkout",
@@ -38,31 +69,7 @@ export const newCheckout: FlagResponse = {
   ],
   version: 7,
   environments: {
-    dev: {
-      enabled: true,
-      off_variant: "off",
-      rules: [
-        {
-          id: "staff",
-          conditions: [
-            {
-              type: "attribute",
-              attribute: "email",
-              operator: "ends_with",
-              values: ["@shop.test"],
-              negate: false,
-            },
-          ],
-          serve: { variant: "on" },
-        },
-      ],
-      fallthrough: {
-        rollout: [
-          { variant: "on", weight: 25_000 },
-          { variant: "off", weight: 75_000 },
-        ],
-      },
-    },
+    dev: developmentTargeting,
     staging: offEverywhere,
     prod: offEverywhere,
   },

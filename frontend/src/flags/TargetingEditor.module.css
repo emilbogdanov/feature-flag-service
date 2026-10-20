@@ -1,0 +1,135 @@
+.rules {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Rules are tried top to bottom, so each one carries its place in that order. */
+.rule {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.ruleHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.ruleTitle {
+  font-size: var(--text-lg);
+  font-stretch: var(--width-heading);
+  font-weight: 600;
+}
+
+.ruleId {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 12rem;
+}
+
+.conditions {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.condition {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1fr) auto minmax(9rem, 1fr) minmax(12rem, 2fr) auto;
+  align-items: start;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  padding: 0 0 var(--space-3);
+  border: 0;
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.userList {
+  grid-template-columns: minmax(12rem, 1fr) auto;
+}
+
+@media (max-width: 52rem) {
+  .condition,
+  .userList {
+    grid-template-columns: 1fr;
+  }
+
+  .negate,
+  .lowered {
+    margin-top: 0;
+    min-height: 0;
+    justify-self: start;
+  }
+}
+
+.negate {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: 1.5rem;
+  min-height: 2.5rem;
+}
+
+.negate input {
+  accent-color: var(--color-tape);
+}
+
+.lowered {
+  margin-top: 1.5rem;
+  white-space: nowrap;
+}
+
+.shares {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.share {
+  display: grid;
+  grid-template-columns: minmax(8rem, 12rem) 7rem auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.percent {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.total {
+  font-variant-numeric: tabular-nums;
+}
+
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+}
+
+.state input {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--color-tape);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

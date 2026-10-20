@@ -131,7 +131,7 @@ button {
 }
 
 button:disabled {
-  cursor: progress;
+  cursor: default;
 }
 
 /* Tables only ever hold records here, so the element itself carries the style. */
@@ -185,4 +185,17 @@ td.date {
     transition-duration: 0s !important;
     animation-duration: 0s !important;
   }
+}
+
+/* Read by screen readers, not shown: the visible layout already says what it labels. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }

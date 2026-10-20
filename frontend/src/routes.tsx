@@ -8,6 +8,7 @@ import { ProjectPage } from "./pages/ProjectPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { RouteErrorPage } from "./pages/RouteErrorPage";
 import { SignInPage } from "./pages/SignInPage";
+import { TargetingPage } from "./pages/TargetingPage";
 import { RequireSession } from "./session/RequireSession";
 
 export const routes: RouteObject[] = [
@@ -27,6 +28,10 @@ export const routes: RouteObject[] = [
           { path: "projects/:projectKey", element: <ProjectPage /> },
           { path: "projects/:projectKey/flags/new", element: <NewFlagPage /> },
           { path: "projects/:projectKey/flags/:flagKey", element: <FlagPage /> },
+          {
+            path: "projects/:projectKey/flags/:flagKey/environments/:environmentKey",
+            element: <TargetingPage />,
+          },
           { path: "*", element: <NotFoundPage /> },
         ],
       },
