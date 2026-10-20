@@ -195,9 +195,16 @@ function rememberFlag(
   flag: FlagResponse,
 ) {
   queryClient.setQueryData(flagQuery(client, projectKey, flag.key).queryKey, flag);
-  queryClient.setQueryData(flagsQuery(client, projectKey).queryKey, (flags) =>
-    flags?.map((listed) => (listed.key === flag.key ? flag : listed)),
-  );
+  // A list loaded before the flag existed is asked for again rather than overwritten, since
+  // writing to it would also mark it fresh.
+  const list = flagsQuery(client, projectKey).queryKey;
+  if (queryClient.getQueryData(list)?.some((listed) => listed.key === flag.key)) {
+    queryClient.setQueryData(list, (flags) =>
+      flags?.map((listed) => (listed.key === flag.key ? flag : listed)),
+    );
+  } else {
+    void queryClient.invalidateQueries({ queryKey: list, exact: true });
+  }
   void queryClient.invalidateQueries({
     queryKey: environmentsQuery(client, projectKey).queryKey,
     exact: true,

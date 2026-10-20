@@ -108,3 +108,25 @@ describe("switching a flag", () => {
     ).toBeInTheDocument();
   });
 });
+
+it("lists a flag created after the list was loaded, even once it has been edited", async () => {
+  let listed: (typeof newCheckout)[] = [];
+  serveStorefront();
+  server.use(
+    http.get("*/projects/storefront/flags", () => HttpResponse.json(listed)),
+    http.post(`${SWITCH_PATH}/enable`, () =>
+      HttpResponse.json(switched(newCheckout, "prod", true)),
+    ),
+  );
+  const { user, router } = renderDashboard("/projects/storefront", { adminKey: ADMIN_KEY });
+  expect(await screen.findByText("No flags yet.")).toBeVisible();
+
+  // Created elsewhere meanwhile, then switched on from its own page.
+  listed = [switched(newCheckout, "prod", true)];
+  await router.navigate("/projects/storefront/flags/new-checkout");
+  await user.click(await screen.findByRole("switch", { name: "New checkout in Production" }));
+  await screen.findByRole("switch", { name: "New checkout in Production", checked: true });
+  await router.navigate("/projects/storefront");
+
+  expect(await screen.findByRole("link", { name: "New checkout" })).toBeVisible();
+});
