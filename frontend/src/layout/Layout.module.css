@@ -6,8 +6,9 @@
 
 .bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--space-3) var(--space-8);
   max-width: var(--page-width);
   margin: 0 auto;
   padding: var(--space-3) var(--gutter);
@@ -19,6 +20,30 @@
   font-weight: 650;
   letter-spacing: -0.01em;
   text-decoration: none;
+}
+
+.nav {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-6);
+}
+
+/* The marker under the current section is the tape again: it says where you are. */
+.section {
+  padding: var(--space-1) 0;
+  border-bottom: 2px solid transparent;
+  color: var(--color-ink-muted);
+  text-decoration: none;
+}
+
+.section:hover {
+  color: var(--color-ink);
+}
+
+.current {
+  border-bottom-color: var(--color-tape);
+  color: var(--color-ink);
 }
 
 .main {
