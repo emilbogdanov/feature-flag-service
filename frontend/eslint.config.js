@@ -8,7 +8,7 @@ import tseslint from "typescript-eslint";
 
 export default defineConfig([
   // schema.ts is generated from the API's OpenAPI document; CI checks it against the API instead.
-  globalIgnores(["dist", "coverage", "src/api/schema.ts"]),
+  globalIgnores(["dist", "coverage", "test-results", "playwright-report", "src/api/schema.ts"]),
   {
     files: ["**/*.{ts,tsx}"],
     extends: [
