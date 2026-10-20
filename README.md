@@ -10,7 +10,7 @@ inside your app by a Python SDK that the server keeps current over server-sent e
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-![A project in the dashboard: its flags, each with a switch for every environment](docs/dashboard.png)
+![A project in the dashboard: its flags, each with a switch for every environment](docs/dashboard-flags.png)
 
 ## Features
 
@@ -33,6 +33,33 @@ inside your app by a Python SDK that the server keeps current over server-sent e
 - API keys stored only as hashes: admin keys for the API, SDK keys that read one environment.
 - Prometheus metrics, JSON logs with a request id on every line, and a shutdown that ends SDK
   streams at once so they reconnect to the other instance.
+
+## Dashboard
+
+<table>
+  <tr>
+    <td width="50%" valign="top" rowspan="2">
+      <img src="docs/dashboard-rule.png" alt="A targeting rule on country and plan, serving on to 25% and off to 75%">
+      <p>A rule in the targeting editor: pro customers in Bulgaria and Germany, a quarter of whom get the new checkout.</p>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/dashboard-flag-dark.png" alt="New checkout's page in the dark theme: on in every environment, with two rules in production">
+      <p>A flag's page: how each environment serves it, in the dark theme the dashboard takes from the system.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/dashboard-keys.png" alt="The API keys page: two SDK keys reading one environment each, and two admin keys">
+      <p>API keys and what each one can read. A new key's secret is shown once.</p>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" valign="top">
+      <img src="docs/dashboard-audit.png" alt="The audit log for the shop project: two admins switching flags and changing targeting">
+      <p>The audit log, here for one project: who changed what, and where.</p>
+    </td>
+  </tr>
+</table>
 
 ## Tech stack
 
