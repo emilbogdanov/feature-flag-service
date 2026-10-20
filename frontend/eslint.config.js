@@ -6,7 +6,8 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default defineConfig([
-  globalIgnores(["dist", "coverage"]),
+  // schema.ts is generated from the API's OpenAPI document; CI checks it against the API instead.
+  globalIgnores(["dist", "coverage", "src/api/schema.ts"]),
   {
     files: ["**/*.{ts,tsx}"],
     extends: [
@@ -29,7 +30,7 @@ export default defineConfig([
     },
   },
   {
-    files: ["vite.config.ts"],
+    files: ["vite.config.ts", "scripts/**/*.ts"],
     languageOptions: {
       globals: globals.node,
     },
