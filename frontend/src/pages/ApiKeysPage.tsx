@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { apiKeysQuery } from "../api/queries";
 import type { ApiKeyResponse } from "../api/schema";
+import { ButtonLink } from "../components/ButtonLink";
 import { ErrorNotice } from "../components/ErrorNotice";
 import { formatDate } from "../format";
 import { RevokeKey } from "../keys/RevokeKey";
@@ -21,6 +22,11 @@ export function ApiKeysPage() {
         </p>
       </div>
       <div className={styles.sections}>
+        <div>
+          <ButtonLink to="/api-keys/new" variant="primary">
+            Issue a key
+          </ButtonLink>
+        </div>
         {keys.isPending ? (
           <p className={styles.status}>Loading keys…</p>
         ) : keys.isError ? (

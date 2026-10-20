@@ -3,6 +3,7 @@ import type { RouteObject } from "react-router";
 import { Layout } from "./layout/Layout";
 import { ApiKeysPage } from "./pages/ApiKeysPage";
 import { FlagPage } from "./pages/FlagPage";
+import { NewApiKeyPage } from "./pages/NewApiKeyPage";
 import { NewFlagPage } from "./pages/NewFlagPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { ProjectPage } from "./pages/ProjectPage";
@@ -34,6 +35,7 @@ export const routes: RouteObject[] = [
             element: <TargetingPage />,
           },
           { path: "api-keys", element: <ApiKeysPage /> },
+          { path: "api-keys/new", element: <NewApiKeyPage /> },
           { path: "*", element: <NotFoundPage /> },
         ],
       },
