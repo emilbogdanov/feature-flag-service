@@ -3,7 +3,7 @@ import { HttpResponse, type JsonBodyType, http } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { readStoredKey } from "../session/storage";
-import { ADMIN_KEY, storefront } from "../test/fixtures";
+import { ADMIN_KEY, storefront, storefrontEnvironments } from "../test/fixtures";
 import { renderDashboard } from "../test/render";
 import { server } from "../test/server";
 
@@ -33,11 +33,28 @@ describe("signing in", () => {
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
     expect(await screen.findByRole("heading", { name: "Projects" })).toBeInTheDocument();
-    expect(screen.getByRole("table")).toHaveTextContent("Storefront");
+    expect(screen.getByRole("link", { name: "Storefront" })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/");
     expect(readStoredKey()).toBe(ADMIN_KEY);
     // The list came with the check, so signing in costs one request.
     expect(keys).toEqual([`Bearer ${ADMIN_KEY}`]);
+  });
+
+  it("returns to the page that asked for a sign-in", async () => {
+    answerProjects(200, [storefront]);
+    server.use(
+      http.get("*/projects/storefront", () => HttpResponse.json(storefront)),
+      http.get("*/projects/storefront/environments", () =>
+        HttpResponse.json(storefrontEnvironments),
+      ),
+    );
+    const { user, router } = renderDashboard("/projects/storefront");
+
+    await user.type(await screen.findByLabelText("Admin key"), ADMIN_KEY);
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByRole("heading", { name: "Storefront" })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/projects/storefront");
   });
 
   it("says when the API doesn't know the key", async () => {

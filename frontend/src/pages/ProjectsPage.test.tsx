@@ -6,13 +6,17 @@ import { ADMIN_KEY, billing, storefront } from "../test/fixtures";
 import { renderDashboard } from "../test/render";
 import { server } from "../test/server";
 
-it("lists every project", async () => {
+it("lists every project with a link to it", async () => {
   server.use(http.get("*/projects", () => HttpResponse.json([storefront, billing])));
   renderDashboard("/", { adminKey: ADMIN_KEY });
 
   const table = await screen.findByRole("table");
   expect(within(table).getAllByRole("row")).toHaveLength(3);
-  expect(within(table).getByRole("row", { name: /Storefront/ })).toHaveTextContent("storefront");
+  const storefrontRow = within(table).getByRole("row", { name: /Storefront/ });
+  expect(within(storefrontRow).getByRole("link", { name: "Storefront" })).toHaveAttribute(
+    "href",
+    "/projects/storefront",
+  );
   expect(within(table).getByRole("row", { name: /Billing/ })).toHaveTextContent("billing");
 });
 
@@ -41,6 +45,6 @@ it("shows a failed load and loads again on request", async () => {
   );
   await user.click(screen.getByRole("button", { name: "Try again" }));
 
-  expect(await screen.findByRole("table")).toHaveTextContent("Storefront");
+  expect(await screen.findByRole("link", { name: "Storefront" })).toBeInTheDocument();
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });

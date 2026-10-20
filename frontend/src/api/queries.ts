@@ -11,3 +11,25 @@ export function projectsQuery(client: ApiClient) {
     queryFn: () => unwrap(client.GET("/projects")),
   });
 }
+
+export function projectQuery(client: ApiClient, projectKey: string) {
+  return queryOptions({
+    queryKey: ["projects", projectKey],
+    queryFn: () =>
+      unwrap(
+        client.GET("/projects/{project_key}", { params: { path: { project_key: projectKey } } }),
+      ),
+  });
+}
+
+export function environmentsQuery(client: ApiClient, projectKey: string) {
+  return queryOptions({
+    queryKey: ["projects", projectKey, "environments"],
+    queryFn: () =>
+      unwrap(
+        client.GET("/projects/{project_key}/environments", {
+          params: { path: { project_key: projectKey } },
+        }),
+      ),
+  });
+}

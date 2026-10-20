@@ -2,6 +2,7 @@ import type { RouteObject } from "react-router";
 
 import { Layout } from "./layout/Layout";
 import { NotFoundPage } from "./pages/NotFoundPage";
+import { ProjectPage } from "./pages/ProjectPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { RouteErrorPage } from "./pages/RouteErrorPage";
 import { SignInPage } from "./pages/SignInPage";
@@ -21,6 +22,7 @@ export const routes: RouteObject[] = [
         ),
         children: [
           { index: true, element: <ProjectsPage /> },
+          { path: "projects/:projectKey", element: <ProjectPage /> },
           { path: "*", element: <NotFoundPage /> },
         ],
       },

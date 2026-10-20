@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router";
 
 import { projectsQuery } from "../api/queries";
 import { ErrorNotice } from "../components/ErrorNotice";
@@ -38,7 +39,9 @@ export function ProjectsPage() {
           <tbody>
             {projects.data.map((project) => (
               <tr key={project.key}>
-                <td>{project.name}</td>
+                <td>
+                  <Link to={`/projects/${encodeURIComponent(project.key)}`}>{project.name}</Link>
+                </td>
                 <td>
                   <code>{project.key}</code>
                 </td>
