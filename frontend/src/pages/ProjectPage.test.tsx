@@ -2,19 +2,18 @@ import { screen, within } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { expect, it } from "vitest";
 
-import { ADMIN_KEY, storefront, storefrontEnvironments } from "../test/fixtures";
+import { serveStorefront } from "../test/api";
+import { ADMIN_KEY } from "../test/fixtures";
 import { renderDashboard } from "../test/render";
 import { server } from "../test/server";
 
 it("shows the project's environments and their ruleset versions", async () => {
-  server.use(
-    http.get("*/projects/storefront", () => HttpResponse.json(storefront)),
-    http.get("*/projects/storefront/environments", () => HttpResponse.json(storefrontEnvironments)),
-  );
+  serveStorefront();
   renderDashboard("/projects/storefront", { adminKey: ADMIN_KEY });
 
   expect(await screen.findByRole("heading", { level: 1, name: "Storefront" })).toBeInTheDocument();
-  const table = await screen.findByRole("table");
+  const section = screen.getByRole("region", { name: "Environments" });
+  const table = await within(section).findByRole("table");
   const rows = within(table).getAllByRole("row").slice(1);
   expect(rows.map((row) => within(row).getAllByRole("cell")[1]?.textContent)).toEqual([
     "dev",

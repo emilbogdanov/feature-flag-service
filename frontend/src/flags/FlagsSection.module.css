@@ -1,0 +1,25 @@
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+/* One column per environment can outgrow a phone; the table scrolls instead of the page. */
+.scroller {
+  overflow-x: auto;
+}
+
+.flag {
+  display: grid;
+}
+
+.key {
+  font-size: var(--text-sm);
+  color: var(--color-ink-muted);
+}
+
+.kind {
+  color: var(--color-ink-muted);
+}

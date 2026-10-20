@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router";
 import { ApiError } from "../api/client";
 import { environmentsQuery, projectQuery } from "../api/queries";
 import { ErrorNotice } from "../components/ErrorNotice";
+import { FlagsSection } from "../flags/FlagsSection";
 import { formatDate } from "../format";
 import { useApiClient } from "../session/session-context";
 import styles from "./page.module.css";
@@ -46,39 +47,44 @@ export function ProjectPage() {
         <ErrorNotice error={project.error} onRetry={() => void project.refetch()} />
       )}
 
-      <section className={styles.section} aria-labelledby="environments">
-        <h2 id="environments">Environments</h2>
-        {environments.isPending ? (
-          <p className={styles.status}>Loading environments…</p>
-        ) : environments.isError ? (
-          <ErrorNotice error={environments.error} onRetry={() => void environments.refetch()} />
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">Name</th>
-                <th scope="col">Key</th>
-                <th scope="col" className="numeric">
-                  Ruleset version
-                </th>
-                <th scope="col">Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {environments.data.map((environment) => (
-                <tr key={environment.key}>
-                  <td>{environment.name}</td>
-                  <td>
-                    <code>{environment.key}</code>
-                  </td>
-                  <td className="numeric">{environment.ruleset_version}</td>
-                  <td className="date">{formatDate(environment.created_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className={styles.sections}>
+        {environments.isSuccess && (
+          <FlagsSection projectKey={projectKey} environments={environments.data} />
         )}
-      </section>
+        <section className={styles.section} aria-labelledby="environments">
+          <h2 id="environments">Environments</h2>
+          {environments.isPending ? (
+            <p className={styles.status}>Loading environments…</p>
+          ) : environments.isError ? (
+            <ErrorNotice error={environments.error} onRetry={() => void environments.refetch()} />
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Name</th>
+                  <th scope="col">Key</th>
+                  <th scope="col" className="numeric">
+                    Ruleset version
+                  </th>
+                  <th scope="col">Created</th>
+                </tr>
+              </thead>
+              <tbody>
+                {environments.data.map((environment) => (
+                  <tr key={environment.key}>
+                    <td>{environment.name}</td>
+                    <td>
+                      <code>{environment.key}</code>
+                    </td>
+                    <td className="numeric">{environment.ruleset_version}</td>
+                    <td className="date">{formatDate(environment.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+      </div>
     </>
   );
 }
