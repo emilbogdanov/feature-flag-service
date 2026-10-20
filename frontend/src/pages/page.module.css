@@ -54,3 +54,25 @@
   margin: 0 auto;
   padding: var(--space-12) var(--gutter);
 }
+
+.sections {
+  display: grid;
+  gap: var(--space-12);
+}
+
+.details {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-4);
+}
+
+.notice {
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--color-ink-muted);
+  background: var(--color-surface);
+}
+
+.value {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

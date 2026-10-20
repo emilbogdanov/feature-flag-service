@@ -10,6 +10,12 @@ describe("describeError", () => {
     expect(describeError(error)).toBe("Project 'shop' does not exist.");
   });
 
+  it("explains an edit refused because the flag changed meanwhile", () => {
+    const error = new ApiError(412, "version_mismatch", "flag 'x' is at version 4, not 3");
+
+    expect(describeError(error)).toMatch(/^Someone changed this flag/);
+  });
+
   it("explains a request that got no response", () => {
     expect(describeError(new TypeError("Failed to fetch"))).toBe(
       "The API can't be reached. Check that it's running, then try again.",

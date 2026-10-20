@@ -148,10 +148,18 @@ th {
   border-bottom: 1px solid var(--color-rule);
 }
 
-td {
+td,
+tbody th {
   padding: var(--space-3);
   border-bottom: 1px solid var(--color-rule);
   vertical-align: baseline;
+}
+
+/* A row's own heading reads like the rest of the row, not like the column headings. */
+tbody th {
+  font-size: inherit;
+  font-weight: 500;
+  color: var(--color-ink);
 }
 
 th:first-child,

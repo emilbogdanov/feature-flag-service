@@ -33,3 +33,27 @@ export function environmentsQuery(client: ApiClient, projectKey: string) {
       ),
   });
 }
+
+export function flagsQuery(client: ApiClient, projectKey: string) {
+  return queryOptions({
+    queryKey: ["projects", projectKey, "flags"],
+    queryFn: () =>
+      unwrap(
+        client.GET("/projects/{project_key}/flags", {
+          params: { path: { project_key: projectKey } },
+        }),
+      ),
+  });
+}
+
+export function flagQuery(client: ApiClient, projectKey: string, flagKey: string) {
+  return queryOptions({
+    queryKey: ["projects", projectKey, "flags", flagKey],
+    queryFn: () =>
+      unwrap(
+        client.GET("/projects/{project_key}/flags/{flag_key}", {
+          params: { path: { project_key: projectKey, flag_key: flagKey } },
+        }),
+      ),
+  });
+}
