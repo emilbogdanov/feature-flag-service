@@ -1,32 +1,62 @@
+/*
+ * Flagging tape: the bright ribbon surveyors tie to a staff to mark a point. It is the one accent,
+ * kept for what needs acting on or noticing: the primary action, focus, the marker in the header.
+ */
 :root {
   color-scheme: light dark;
-  --color-text: #1c1f23;
-  --color-text-muted: #5b6370;
-  --color-surface: #ffffff;
-  --color-background: #f5f6f8;
-  --color-border: #dde1e6;
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, monospace;
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-6: 24px;
 
-  font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--color-text);
-  background: var(--color-background);
+  --color-paper: #f2f4f7;
+  --color-surface: #ffffff;
+  --color-ink: #172033;
+  --color-ink-muted: #586377;
+  --color-rule: #d5dbe3;
+  --color-tape: #c81e58;
+  --color-on-tape: #ffffff;
+  --color-danger: #b42318;
+  --color-danger-wash: #fdecea;
+
+  --font-sans: "Instrument Sans Variable", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  /* Headings use the face's narrow width, like lettering on a marker post. */
+  --width-heading: 82%;
+
+  --text-sm: 0.8125rem;
+  --text-md: 0.9375rem;
+  --text-lg: 1.1875rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2.125rem;
+  --text-display: 4rem;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+
+  --radius: 6px;
+  --page-width: 66rem;
+  --gutter: var(--space-8);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-text: #e6e8eb;
-    --color-text-muted: #9aa3ae;
-    --color-surface: #1b1e22;
-    --color-background: #121417;
-    --color-border: #2c3137;
+    --color-paper: #111722;
+    --color-surface: #182030;
+    --color-ink: #e5e9f0;
+    --color-ink-muted: #98a3b5;
+    --color-rule: #2a3446;
+    --color-tape: #ff5c8e;
+    --color-on-tape: #111722;
+    --color-danger: #ff8a80;
+    --color-danger-wash: #3a1d1f;
+  }
+}
+
+@media (max-width: 40rem) {
+  :root {
+    --gutter: var(--space-4);
   }
 }
 
@@ -36,29 +66,113 @@
   box-sizing: border-box;
 }
 
+html {
+  font-size: 100%;
+}
+
 body {
   margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  line-height: 1.55;
+  color: var(--color-ink);
+  background: var(--color-paper);
+  -webkit-font-smoothing: antialiased;
 }
 
-.app {
-  min-height: 100vh;
-  display: grid;
-  grid-template-rows: auto 1fr;
-}
-
-.app-header {
-  display: flex;
-  align-items: center;
-  padding: var(--space-3) var(--space-6);
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.wordmark {
+h1,
+h2 {
+  margin: 0;
+  font-stretch: var(--width-heading);
   font-weight: 600;
-  letter-spacing: 0.01em;
+  line-height: 1.15;
 }
 
-.app-main {
-  padding: var(--space-6);
+h1 {
+  font-size: var(--text-2xl);
+  letter-spacing: -0.015em;
+}
+
+h2 {
+  font-size: var(--text-xl);
+  letter-spacing: -0.01em;
+}
+
+p {
+  margin: 0;
+  max-width: 68ch;
+}
+
+a {
+  color: inherit;
+  text-decoration-color: var(--color-rule);
+  text-underline-offset: 0.2em;
+}
+
+a:hover {
+  text-decoration-color: currentColor;
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-tape);
+  outline-offset: 2px;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: progress;
+}
+
+/* Tables only ever hold records here, so the element itself carries the style. */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+th {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-ink-muted);
+  text-align: left;
+  border-bottom: 1px solid var(--color-rule);
+}
+
+td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-rule);
+  vertical-align: baseline;
+}
+
+th:first-child,
+td:first-child {
+  padding-left: 0;
+}
+
+th.numeric,
+td.numeric {
+  text-align: right;
+}
+
+td.date {
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+  }
 }

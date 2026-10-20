@@ -1,10 +1,18 @@
-export function App() {
+import type { QueryClient } from "@tanstack/react-query";
+import type { DataRouter } from "react-router";
+import { RouterProvider } from "react-router/dom";
+
+import { AppProviders } from "./AppProviders";
+
+interface AppProps {
+  router: DataRouter;
+  queryClient?: QueryClient;
+}
+
+export function App({ router, queryClient }: AppProps) {
   return (
-    <div className="app">
-      <header className="app-header">
-        <span className="wordmark">Flagstaff</span>
-      </header>
-      <main className="app-main" />
-    </div>
+    <AppProviders {...(queryClient && { queryClient })}>
+      <RouterProvider router={router} />
+    </AppProviders>
   );
 }

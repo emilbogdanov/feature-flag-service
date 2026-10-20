@@ -1,0 +1,29 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.primary {
+  background: var(--color-tape);
+  color: var(--color-on-tape);
+}
+
+.primary:disabled {
+  opacity: 0.7;
+}
+
+.quiet {
+  background: none;
+  border-color: var(--color-rule);
+  color: var(--color-ink);
+}
+
+.quiet:hover {
+  border-color: var(--color-ink-muted);
+}

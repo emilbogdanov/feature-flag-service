@@ -1,0 +1,28 @@
+.header {
+  background: var(--color-surface);
+  border-top: 4px solid var(--color-tape);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: var(--page-width);
+  margin: 0 auto;
+  padding: var(--space-3) var(--gutter);
+}
+
+.wordmark {
+  font-size: var(--text-lg);
+  font-stretch: var(--width-heading);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+
+.main {
+  max-width: var(--page-width);
+  margin: 0 auto;
+  padding: var(--space-8) var(--gutter) var(--space-12);
+}
