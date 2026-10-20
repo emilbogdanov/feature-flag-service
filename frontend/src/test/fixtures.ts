@@ -1,5 +1,6 @@
 import type {
   ApiKeyResponse,
+  AuditEntryResponse,
   EnvironmentResponse,
   FlagResponse,
   ProjectResponse,
@@ -113,3 +114,17 @@ export const sdkKey: ApiKeyResponse = {
   created_at: "2026-10-02T09:00:00Z",
   revoked_at: null,
 };
+
+export function auditEntry(change: Partial<AuditEntryResponse>): AuditEntryResponse {
+  return {
+    id: crypto.randomUUID(),
+    action: "flag.enabled",
+    actor: { api_key_id: adminKey.id, name: adminKey.name },
+    at: "2026-10-20T09:00:00Z",
+    project: "storefront",
+    environment: "prod",
+    subject: "new-checkout",
+    changes: {},
+    ...change,
+  };
+}

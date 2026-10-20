@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import { type ApiClient, unwrap } from "./client";
 
@@ -62,5 +62,24 @@ export function apiKeysQuery(client: ApiClient) {
   return queryOptions({
     queryKey: ["api-keys"],
     queryFn: () => unwrap(client.GET("/api-keys")),
+  });
+}
+
+const AUDIT_PAGE_SIZE = 50;
+
+// Newest first, a page at a time; each page says where the next one starts.
+export function auditQuery(client: ApiClient, projectKey: string | null) {
+  return infiniteQueryOptions({
+    queryKey: ["audit", projectKey],
+    queryFn: ({ pageParam }) =>
+      unwrap(
+        client.GET("/audit", {
+          params: {
+            query: { project: projectKey, cursor: pageParam, limit: AUDIT_PAGE_SIZE },
+          },
+        }),
+      ),
+    initialPageParam: null as string | null,
+    getNextPageParam: (page) => page.next_cursor,
   });
 }

@@ -81,3 +81,15 @@
 .scroller {
   overflow-x: auto;
 }
+
+.filter {
+  max-width: 20rem;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-6);
+  color: var(--color-ink-muted);
+}

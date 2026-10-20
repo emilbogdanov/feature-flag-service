@@ -2,6 +2,7 @@ import type { RouteObject } from "react-router";
 
 import { Layout } from "./layout/Layout";
 import { ApiKeysPage } from "./pages/ApiKeysPage";
+import { AuditPage } from "./pages/AuditPage";
 import { FlagPage } from "./pages/FlagPage";
 import { NewApiKeyPage } from "./pages/NewApiKeyPage";
 import { NewFlagPage } from "./pages/NewFlagPage";
@@ -36,6 +37,7 @@ export const routes: RouteObject[] = [
           },
           { path: "api-keys", element: <ApiKeysPage /> },
           { path: "api-keys/new", element: <NewApiKeyPage /> },
+          { path: "audit", element: <AuditPage /> },
           { path: "*", element: <NotFoundPage /> },
         ],
       },

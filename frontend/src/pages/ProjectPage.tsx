@@ -39,8 +39,11 @@ export function ProjectPage() {
       </nav>
       <div className={styles.heading}>
         <h1>{project.data?.name ?? projectKey}</h1>
-        <p className={styles.subtitle}>
+        <p className={styles.meta}>
           <code>{projectKey}</code>
+          <Link to={`/audit?project=${encodeURIComponent(projectKey)}`}>
+            Changes to this project
+          </Link>
         </p>
       </div>
       {project.isError && (
