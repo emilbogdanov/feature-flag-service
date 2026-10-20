@@ -1,5 +1,6 @@
-# Images are built from the repository root, and only the server, the SDK and the lock file go in.
-# The SDK's README and license are part of its package metadata, so building it needs them.
+# Images are built from the repository root, and only what they are built from goes in: the
+# server, the SDK and their lock file for the API, the dashboard's sources and nginx's
+# configuration for the proxy. The SDK's README and license are part of its package metadata.
 **
 !backend/pyproject.toml
 !backend/uv.lock
@@ -10,4 +11,11 @@
 !sdk/README.md
 !sdk/LICENSE
 !sdk/src/
+!frontend/package.json
+!frontend/package-lock.json
+!frontend/index.html
+!frontend/tsconfig*.json
+!frontend/vite.config.ts
+!frontend/src/
+!deploy/nginx.conf
 **/__pycache__

@@ -94,6 +94,25 @@ async def test_the_proxy_serves_the_api_but_not_its_metrics(api: AsyncClient) ->
     assert (await api.get("/metrics")).status_code == 404
 
 
+async def test_the_proxy_serves_the_dashboard_beside_the_api() -> None:
+    async with AsyncClient(base_url=STACK_URL, timeout=10) as browser:
+        root = await browser.get("/")
+        page = await browser.get("/dashboard/projects/storefront")
+        api_answer = await browser.get("/projects")
+        missing_asset = await browser.get("/dashboard/assets/missing.js")
+
+    assert root.status_code == 302
+    assert root.headers["Location"].endswith("/dashboard/")
+    # A route inside the app is answered with the app, never cached, and with its policy.
+    assert page.status_code == 200
+    assert '<div id="root">' in page.text
+    assert page.headers["Cache-Control"] == "no-cache"
+    assert "default-src 'self'" in page.headers["Content-Security-Policy"]
+    assert api_answer.status_code == 401
+    assert "Content-Security-Policy" not in api_answer.headers
+    assert missing_asset.status_code == 404
+
+
 async def test_a_request_keeps_one_id_through_the_proxy(api: AsyncClient) -> None:
     named = await api.get("/projects", headers={"X-Request-ID": "stack-check-1"})
     unnamed = await api.get("/projects")
