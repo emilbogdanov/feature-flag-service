@@ -10,7 +10,8 @@ import { ArchiveFlag } from "../flags/ArchiveFlag";
 import { FlagDetails } from "../flags/FlagDetails";
 import { FlagSwitch } from "../flags/FlagSwitch";
 import { describeServe } from "../flags/serve";
-import { KIND_LABELS, formatValue } from "../flags/variants";
+import { KIND_LABELS } from "../flags/variants";
+import { VariantsSection } from "../flags/VariantsSection";
 import { formatDate } from "../format";
 import { useApiClient } from "../session/session-context";
 import styles from "./page.module.css";
@@ -145,29 +146,7 @@ function Flag({ projectKey, flag, environments, environmentsError }: FlagProps) 
           )}
         </section>
 
-        <section className={styles.section} aria-labelledby="variants">
-          <h2 id="variants">Variants</h2>
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">Key</th>
-                <th scope="col">Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {flag.variants.map((variant) => (
-                <tr key={variant.key}>
-                  <td>
-                    <code>{variant.key}</code>
-                  </td>
-                  <td>
-                    <code className={styles.value}>{formatValue(flag.kind, variant.value)}</code>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
+        <VariantsSection projectKey={projectKey} flag={flag} editable={!archived} />
 
         {!archived && <ArchiveFlag projectKey={projectKey} flag={flag} />}
       </div>

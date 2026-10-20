@@ -2,13 +2,13 @@ import { type QueryClient, useMutation, useQueryClient } from "@tanstack/react-q
 
 import { type ApiClient, unwrap } from "../api/client";
 import { environmentsQuery, flagQuery, flagsQuery } from "../api/queries";
-import type { CreateFlag, FlagResponse } from "../api/schema";
+import type { CreateFlag, FlagResponse, VariantSchema } from "../api/schema";
 import { useApiClient } from "../session/session-context";
 
 // Edits name the version they were made against, so one made on a stale page is refused with 412
 // instead of undoing a change the editor never saw.
-function ifMatch(flag: FlagResponse) {
-  return { "if-match": `"${String(flag.version)}"` };
+function ifMatch(version: number) {
+  return { "if-match": `"${String(version)}"` };
 }
 
 interface SwitchRequest {
@@ -29,7 +29,7 @@ export function useSwitchFlag(projectKey: string) {
         ? unwrap(
             client.POST(
               "/projects/{project_key}/flags/{flag_key}/environments/{environment_key}/enable",
-              { params: { path, header: ifMatch(flag) } },
+              { params: { path, header: ifMatch(flag.version) } },
             ),
           )
         : unwrap(
@@ -79,8 +79,39 @@ export function useChangeDetails(projectKey: string) {
     mutationFn: ({ flag, name, description }: DetailsRequest) =>
       unwrap(
         client.PATCH("/projects/{project_key}/flags/{flag_key}", {
-          params: { path: { project_key: projectKey, flag_key: flag.key }, header: ifMatch(flag) },
+          params: {
+            path: { project_key: projectKey, flag_key: flag.key },
+            header: ifMatch(flag.version),
+          },
           body: { name, description },
+        }),
+      ),
+    onSuccess: (flag) => {
+      rememberFlag(queryClient, client, projectKey, flag);
+    },
+    onError: () => {
+      refreshFlags(queryClient, client, projectKey);
+    },
+  });
+}
+
+interface VariantsRequest {
+  flag: FlagResponse;
+  variants: VariantSchema[];
+}
+
+export function useChangeVariants(projectKey: string) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ flag, variants }: VariantsRequest) =>
+      unwrap(
+        client.PUT("/projects/{project_key}/flags/{flag_key}/variants", {
+          params: {
+            path: { project_key: projectKey, flag_key: flag.key },
+            header: ifMatch(flag.version),
+          },
+          body: { variants },
         }),
       ),
     onSuccess: (flag) => {
@@ -99,7 +130,10 @@ export function useArchiveFlag(projectKey: string) {
     mutationFn: (flag: FlagResponse) =>
       unwrap(
         client.POST("/projects/{project_key}/flags/{flag_key}/archive", {
-          params: { path: { project_key: projectKey, flag_key: flag.key }, header: ifMatch(flag) },
+          params: {
+            path: { project_key: projectKey, flag_key: flag.key },
+            header: ifMatch(flag.version),
+          },
         }),
       ),
     onSuccess: (flag) => {

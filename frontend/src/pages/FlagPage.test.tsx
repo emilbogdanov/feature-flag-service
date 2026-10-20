@@ -2,7 +2,7 @@ import { screen, within } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 
-import type { ChangeFlagDetails } from "../api/schema";
+import type { ChangeFlagDetails, ChangeVariants } from "../api/schema";
 import { serveStorefront, versionMismatch } from "../test/api";
 import { ADMIN_KEY, edited, newCheckout } from "../test/fixtures";
 import { renderDashboard } from "../test/render";
@@ -117,5 +117,65 @@ describe("archiving a flag", () => {
     await screen.findByRole("heading", { level: 1, name: "Storefront" });
     expect(router.state.location.pathname).toBe("/projects/storefront");
     expect(ifMatch).toEqual(['"7"']);
+  });
+});
+
+describe("editing a flag's variants", () => {
+  it("saves them against the version on screen", async () => {
+    serveStorefront();
+    const sent: { body: ChangeVariants; ifMatch: string | null }[] = [];
+    server.use(
+      http.put(`*${FLAG_PATH}/variants`, async ({ request }) => {
+        const body = (await request.json()) as ChangeVariants;
+        sent.push({ body, ifMatch: request.headers.get("If-Match") });
+        return HttpResponse.json(edited(newCheckout, body));
+      }),
+    );
+    const { user } = renderDashboard(FLAG_PATH, { adminKey: ADMIN_KEY });
+
+    await user.click(await screen.findByRole("button", { name: "Edit variants" }));
+    await user.click(screen.getByRole("button", { name: "Add variant" }));
+    await user.type(screen.getByLabelText("Key of variant 3"), "also-on");
+    await user.click(screen.getByRole("button", { name: "Save variants" }));
+
+    const variants = within(screen.getByRole("region", { name: "Variants" }));
+    expect(await variants.findByRole("row", { name: /also-on/ })).toHaveTextContent("true");
+    expect(sent).toEqual([
+      {
+        body: {
+          variants: [
+            { key: "on", value: true },
+            { key: "off", value: false },
+            { key: "also-on", value: true },
+          ],
+        },
+        ifMatch: '"7"',
+      },
+    ]);
+  });
+
+  it("shows why the API refused to remove a variant still in use", async () => {
+    serveStorefront();
+    server.use(
+      http.put(`*${FLAG_PATH}/variants`, () =>
+        HttpResponse.json(
+          {
+            detail: "rule 'staff' of flag 'new-checkout' serves variants it doesn't define: ['on']",
+            code: "invalid_targeting",
+          },
+          { status: 422 },
+        ),
+      ),
+    );
+    const { user } = renderDashboard(FLAG_PATH, { adminKey: ADMIN_KEY });
+
+    await user.click(await screen.findByRole("button", { name: "Edit variants" }));
+    await user.click(screen.getByRole("button", { name: "Remove variant 1" }));
+    await user.click(screen.getByRole("button", { name: "Save variants" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Rule 'staff' of flag 'new-checkout' serves variants it doesn't define",
+    );
+    expect(screen.getByRole("button", { name: "Save variants" })).toBeVisible();
   });
 });
