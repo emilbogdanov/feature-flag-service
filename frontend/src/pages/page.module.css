@@ -76,3 +76,8 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* Wide tables scroll inside the page instead of widening it. */
+.scroller {
+  overflow-x: auto;
+}

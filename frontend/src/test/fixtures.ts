@@ -1,4 +1,5 @@
 import type {
+  ApiKeyResponse,
   EnvironmentResponse,
   FlagResponse,
   ProjectResponse,
@@ -92,3 +93,23 @@ export function switched(flag: FlagResponse, environmentKey: string, enabled: bo
     environments: { ...flag.environments, [environmentKey]: { ...targeting, enabled } },
   });
 }
+
+export const adminKey: ApiKeyResponse = {
+  id: "5c6f0d8e-1a2b-4c3d-8e9f-000000000001",
+  kind: "admin",
+  name: "release tooling",
+  project: null,
+  environment: null,
+  created_at: "2026-10-01T09:00:00Z",
+  revoked_at: null,
+};
+
+export const sdkKey: ApiKeyResponse = {
+  id: "5c6f0d8e-1a2b-4c3d-8e9f-000000000002",
+  kind: "sdk",
+  name: "checkout-api",
+  project: "storefront",
+  environment: "prod",
+  created_at: "2026-10-02T09:00:00Z",
+  revoked_at: null,
+};

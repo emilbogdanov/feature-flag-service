@@ -57,3 +57,10 @@ export function flagQuery(client: ApiClient, projectKey: string, flagKey: string
       ),
   });
 }
+
+export function apiKeysQuery(client: ApiClient) {
+  return queryOptions({
+    queryKey: ["api-keys"],
+    queryFn: () => unwrap(client.GET("/api-keys")),
+  });
+}

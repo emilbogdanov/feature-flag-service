@@ -1,6 +1,7 @@
 import type { RouteObject } from "react-router";
 
 import { Layout } from "./layout/Layout";
+import { ApiKeysPage } from "./pages/ApiKeysPage";
 import { FlagPage } from "./pages/FlagPage";
 import { NewFlagPage } from "./pages/NewFlagPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
@@ -32,6 +33,7 @@ export const routes: RouteObject[] = [
             path: "projects/:projectKey/flags/:flagKey/environments/:environmentKey",
             element: <TargetingPage />,
           },
+          { path: "api-keys", element: <ApiKeysPage /> },
           { path: "*", element: <NotFoundPage /> },
         ],
       },
