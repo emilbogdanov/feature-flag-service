@@ -1,13 +1,16 @@
 # Flagstaff
 
-A feature-flag service: targeting rules managed through an API, evaluated inside your app by a
-Python SDK that the server keeps current over server-sent events.
+A feature-flag service: targeting rules managed through an API and a web dashboard, evaluated
+inside your app by a Python SDK that the server keeps current over server-sent events.
 
 [![backend](https://github.com/emilbogdanov/feature-flag-service/actions/workflows/backend.yml/badge.svg)](https://github.com/emilbogdanov/feature-flag-service/actions/workflows/backend.yml)
 [![sdk](https://github.com/emilbogdanov/feature-flag-service/actions/workflows/sdk.yml/badge.svg)](https://github.com/emilbogdanov/feature-flag-service/actions/workflows/sdk.yml)
+[![frontend](https://github.com/emilbogdanov/feature-flag-service/actions/workflows/frontend.yml/badge.svg)](https://github.com/emilbogdanov/feature-flag-service/actions/workflows/frontend.yml)
 [![stack](https://github.com/emilbogdanov/feature-flag-service/actions/workflows/stack.yml/badge.svg)](https://github.com/emilbogdanov/feature-flag-service/actions/workflows/stack.yml)
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
+![A project in the dashboard: its flags, each with a switch for every environment](docs/dashboard.png)
 
 ## Features
 
@@ -24,6 +27,9 @@ Python SDK that the server keeps current over server-sent events.
   usually costs the server no database query at all.
 - Edits carry the version they were based on in `If-Match` and fail with `412` rather than
   overwrite a change made since. Every change lands in a cursor-paged audit log with who made it.
+- A dashboard for all of it: flags with a switch for each environment, an editor for rules and
+  rollouts that shows a conflict instead of overwriting one, API keys and the audit log. Its API
+  client is typed from the server's own OpenAPI document, and CI fails when the two drift apart.
 - API keys stored only as hashes: admin keys for the API, SDK keys that read one environment.
 - Prometheus metrics, JSON logs with a request id on every line, and a shutdown that ends SDK
   streams at once so they reconnect to the other instance.
@@ -35,6 +41,9 @@ uvicorn, nginx, Docker Compose. The SDK needs only httpx; its evaluation engine 
 library only, and the server runs the same engine for previews. uv, ruff, mypy (strict), pytest
 with testcontainers, and GitHub Actions.
 
+The dashboard: React 19, TypeScript (strict), Vite, TanStack Query and React Router, tested with
+Vitest, Testing Library and MSW, and end to end with Playwright against the running stack.
+
 ## Quickstart
 
 ```
@@ -43,8 +52,9 @@ docker compose up --build --wait
 docker compose exec api-1 flagstaff-server create-admin-key --name "Release tooling"
 ```
 
-The API answers on `http://localhost:8080` (set `FLAGSTAFF_PORT` to move it), with its schema at
-`/docs`. The last command prints an admin key; it is shown once and only its hash is stored.
+The last command prints an admin key; it is shown once and only its hash is stored. Sign in with
+it at `http://localhost:8080/dashboard/`. The API answers on the same port (set `FLAGSTAFF_PORT`
+to move it), with its schema at `/docs`.
 
 ```
  ✔ Container flagstaff-postgres-1  Healthy
@@ -59,7 +69,8 @@ Admin key issued. Store the secret now: it cannot be shown again.
 
 ## Usage
 
-A project, a flag, and targeting for production, with `ADMIN` holding that key:
+The dashboard does the flag, targeting and key steps below without curl; this is the same through
+the API. A project, a flag, and targeting for production, with `ADMIN` holding that key:
 
 ```
 $ curl -s -X POST localhost:8080/projects -H "Authorization: Bearer $ADMIN" \
@@ -183,9 +194,12 @@ backend/        the API: domain, application services, Postgres and Redis adapte
   migrations/   Alembic
   tests/        unit, API, integration (testcontainers) and stack tests
 sdk/            the flagstaff package; src/flagstaff/engine is the evaluation engine
+frontend/       the dashboard: React and TypeScript, built into the proxy's image
+  src/api/      the API client, with schema.ts generated from the server's OpenAPI document
+  e2e/          Playwright tests that drive the dashboard in the compose stack
 loadtest/       flagstaff-load, which produced docs/load-test.md
 deploy/         nginx and Prometheus configuration for the compose stack
-compose.yaml    Postgres, Redis, migrations, two API instances, nginx
+compose.yaml    Postgres, Redis, migrations, two API instances, nginx serving the dashboard
 ```
 
 ## Configuration
@@ -219,11 +233,22 @@ runs them on every commit. CI runs each project on every push, the SDK on Python
 3.14, and a `stack` job that starts the compose stack and tests it from outside, through a rolling
 restart of both instances.
 
+The dashboard's checks are npm scripts in `frontend/`:
+
+```
+cd frontend && npm ci && npm test
+```
+
+`npm run lint`, `npm run typecheck` and `npm run format:check` run the rest. With the stack up
+and an admin key in `FLAGSTAFF_ADMIN_KEY`, `npm run e2e` drives the dashboard in Chromium and
+checks what it did through the API; the `stack` job runs that too. The
+[dashboard's README](frontend/README.md) has the details.
+
 ## Design notes
 
 - **One engine, everywhere.** Evaluation lives in the SDK as plain Python with no dependencies, and
-  the server imports the same package for its previews, so the dashboard and the app can't
-  disagree. Users land in rollouts by SHA-256 of flag and user key over 100,000 buckets: the same
+  the server imports the same package for its `evaluate` endpoints, so what the API says a user
+  gets and what an app serves can't disagree. Users land in rollouts by SHA-256 of flag and user key over 100,000 buckets: the same
   user gets the same variant in every process, and widening a two-variant rollout only adds users.
 - **Everything hangs on a version.** Each environment's ruleset has a number that every change
   moves on, in the same transaction as the change. It is the SSE event id, so a reconnecting SDK
@@ -236,15 +261,19 @@ restart of both instances.
   and an SDK stream never closes by itself, so every deploy waited out the graceful timeout and
   then cut the streams. `flagstaff-server serve` ends them as shutdown begins; nginx sends the
   reconnects to the other instance and never takes either out of rotation.
+- **The dashboard is a client like any other.** It signs in with an admin key, keeps it in the
+  tab's session storage and calls the public API, through a client typed from the OpenAPI document
+  the server generates. nginx serves it under `/dashboard/` on the API's own origin, so there is no
+  CORS to configure and no other service to run.
 - **Bounded staleness for speed.** An instance trusts a key for 10 s and a ruleset version for 5 s.
   Revoking a key through one instance stops it there at once; through the other, within 10 s.
 
 ## Limitations and roadmap
 
-- No dashboard yet: everything is done through the API. A React dashboard on the generated
-  OpenAPI types is next.
+- The dashboard can't create projects or environments yet; those are still API calls.
 - A revoked SDK key keeps a stream it already has open until that stream reconnects.
-- Admin keys can do everything; there are no roles or per-project admin keys.
+- Admin keys can do everything, and the dashboard signs in with one; there are no user accounts,
+  roles or per-project admin keys.
 - An SDK never accepts an older ruleset, so after restoring the database to an earlier version,
   running SDKs keep their newer rules until the version passes them again.
 - The SDK is Python only, and has no hook yet for being told when a flag changes.
